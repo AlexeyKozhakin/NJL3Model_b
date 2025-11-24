@@ -4,8 +4,6 @@ from multiprocessing import Pool, cpu_count
 import time
 # import cProfile
 # import pstats
-from functions.Omega_L import fun_Omega_L
-from functions.dU import fun_dU_phys
 from functions_opt.Omega_mu_L import fun_Omega_L_mu_int
 
 # Ваши функции: fun_Omega_L_mu_int, n_max_plus, и другие остаются без изменений
@@ -18,26 +16,22 @@ USE_FLOAT32 = False  # переключатель точности: True — flo
 DTYPE = np.float32 if USE_FLOAT32 else np.float64
 MU_SPLIT = 100      # количество разбиений для mu
 L_SPLIT = 100       # количество разбиений для L
-M_SPLIT = 10       # количество разбиений для M
+M_SPLIT = 100       # количество разбиений для M
 B_SPLIT = 11       # количество разбиений для b
 
 mu_vals = np.linspace(2.5, 4, MU_SPLIT, dtype=DTYPE)
 L_vals = np.linspace(0.1, 3.0, L_SPLIT, dtype=DTYPE)
 M_vals = np.linspace(0, 5, M_SPLIT, dtype=DTYPE)
-b_vals = np.linspace(0, 1, B_SPLIT, dtype=DTYPE)
+b_vals = np.linspace(-1, 1, B_SPLIT, dtype=DTYPE)
 phi = DTYPE(0)
-g = DTYPE(1)
+g = DTYPE(-1)
 
 
-# Предварительные расчеты
-Omega_L_phys = (fun_Omega_L(L_vals, b_vals, M_vals, N_h_p1=100, N_h_p2=100).astype(DTYPE) -
-                fun_Omega_L(L_vals, b_vals, 0, N_h_p1=100, N_h_p2=100).astype(DTYPE) +
-                fun_Omega_L(L_vals, 0, 0, N_h_p1=100, N_h_p2=100).astype(DTYPE))
-dU_phys = fun_dU_phys(b_vals, M_vals, N_h_p=100, N_h_phi=100).astype(DTYPE)
+
 
 
 # Инициализация массивов
-Omega_ren_phys = np.zeros((len(mu_vals), len(L_vals), len(b_vals), len(M_vals)), dtype=DTYPE)
+
 Omega_mu_L_phys = np.zeros((len(mu_vals), len(L_vals), len(b_vals), len(M_vals)), dtype=DTYPE)
 
 
@@ -54,14 +48,9 @@ def calculate(params):
     Omega_mu_L = (fun_Omega_L_mu_int(mu, L, b, M, phi=0)
                   - fun_Omega_L_mu_int(mu, L, b, 0, phi=0)
                   + fun_Omega_L_mu_int(mu, L, 0, 0, phi=0))
-    Omega_ren = (M**2 / (2 * g) +
-                 dU_phys[b_ind, M_ind] +
-                 Omega_L_phys[L_ind, b_ind, M_ind] +
-                 Omega_mu_L)
-    # end_prof = time.time()
-    # Печать времени выполнения для профилирования
-    #print(f"calculate: mu={mu}, L={L}, b={b}, M={M} | time={end_prof-start_prof:.4f}s")
-    return mu_ind, L_ind, b_ind, M_ind, Omega_mu_L, Omega_ren
+
+
+    return mu_ind, L_ind, b_ind, M_ind, Omega_mu_L
 
 
 if __name__ == "__main__":
@@ -75,26 +64,11 @@ if __name__ == "__main__":
     # Параллельные вычисления
     start = time.time()
 
-    # Профилирование всего расчёта
-    # profiler = cProfile.Profile()
-    # profiler.enable()
-
-    with Pool(processes=1) as pool:
+    with Pool(processes=10) as pool:
         results = pool.map(calculate, params)
 
     # profiler.disable()
     end = time.time()
 
-    # Заполнение массивов результатами
-    for mu_ind, L_ind, b_ind, M_ind, Omega_mu_L, Omega_ren in results:
-        Omega_ren_phys[mu_ind, L_ind, b_ind, M_ind] = Omega_ren
+    print(f"Total computation time: {end - start:.4f} seconds")
 
-    print("Total time:", end - start)
-
-    # Сохранение тензора в файл .npy
-    np.save('Omega_ren_phys.npy', Omega_ren_phys)
-    print("Тензор Omega_ren_phys сохранен в файл Omega_ren_phys.npy")
-
-    # Вывод статистики профилирования
-    #stats = pstats.Stats(profiler)
-    #stats.sort_stats('cumtime').print_stats(20)
