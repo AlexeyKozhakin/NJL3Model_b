@@ -205,7 +205,7 @@ def _compute_Unm(M, b, L, mu, phi, N_h):
             if b >= 0:
                 pr_sq = (Sn + b)**2 - M**2
             else:
-                pr_sq = (Sn + abs(b))**2 - M**2
+                pr_sq = (Sn - abs(b))**2 - M**2
             if pr_sq < 0.0:
                 continue
             p_left = 0.0
