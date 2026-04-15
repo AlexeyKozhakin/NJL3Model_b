@@ -87,7 +87,7 @@ def integration_limits_plus(M,b,mu,L,Nmax,phi):
     SQ = (mu**2-4*(np.pi/L)**2*(n+phi)**2)**(0.5)
     if (b>0):
         p_left = np.zeros_like(n)
-        p_right = np.sqrt((-b - SQ)**2 - M**2)
+        p_right = np.sqrt((-b + SQ)**2 - M**2)
     elif (b<0):
         p_left = np.zeros_like(n)
         p_right = np.sqrt((-b + SQ)**2 - M**2)
@@ -105,7 +105,7 @@ def integration_limits_minus(M,b,mu,L,Nmax,phi):
         p_right = np.sqrt((b + SQ)**2 - M**2)
     elif (b<0):
         p_left = np.zeros_like(n)
-        p_right = np.sqrt((b - SQ)**2 - M**2)
+        p_right = np.sqrt((b + SQ)**2 - M**2)
     else:
         p_left = np.zeros_like(n)
         p_right = (SQ**2 - M**2)**(0.5)
