@@ -80,47 +80,17 @@ def divide_intervals(bounds, N_h):
     return midpoints, steps
 
 
-def integration_limits_plus(M,b,mu,L,Nmax,phi):
-    n = np.linspace(0, Nmax, Nmax+1)
-    #print('arg:', np.sqrt(b**2-M**2))
-    #print('Check_max:', Fpn_plus(np.sqrt(b**2-M**2),n,M,b,L,phi,mu)>0)
-    SQ = (mu**2-4*(np.pi/L)**2*(n+phi)**2)**(0.5)
-    if (b>0):
-        p_left = np.zeros_like(n)
-        p_right = np.sqrt((-b + SQ)**2 - M**2)
-    elif (b<0):
-        p_left = np.zeros_like(n)
-        p_right = np.sqrt((-b + SQ)**2 - M**2)
-    else:
-        p_left = np.zeros_like(n)
-        p_right = (SQ**2 - M**2)**(0.5)
-
-    return p_left, p_right
-
-def integration_limits_minus(M,b,mu,L,Nmax,phi):
-    n = np.linspace(0, Nmax, Nmax+1)
-    SQ = (mu**2-4*(np.pi/L)**2*(n+phi)**2)**(0.5)
-    if (b>0):
-        p_left = np.zeros_like(n)
-        p_right = np.sqrt((b + SQ)**2 - M**2)
-    elif (b<0):
-        p_left = np.zeros_like(n)
-        p_right = np.sqrt((b + SQ)**2 - M**2)
-    else:
-        p_left = np.zeros_like(n)
-        p_right = (SQ**2 - M**2)**(0.5)
-
-    return p_left, p_right
-
 @jit(nopython=True)
 def Fpn_plus(p1, n, M, b, L, phi, mu):
     E1 = np.sqrt(M**2 + p1**2)
     return (mu - np.sqrt((E1 + b)**2 + (2 * np.pi / L * (n + phi))**2))/(2 * np.pi)
 
+
 @jit(nopython=True)
 def Fpn_minus(p1, n, M, b, L, phi, mu):
     E1 = np.sqrt(M**2 + p1**2)
     return (mu - np.sqrt((E1 - b)**2 + (2 * np.pi / L * (n + phi))**2))/(2 * np.pi)
+
 
 @jit(nopython=True)
 def n_max_plus(M,b,L,mu,phi):
@@ -134,6 +104,7 @@ def n_max_plus(M,b,L,mu,phi):
     else:
       n = floor(L/(2*np.pi)*np.sqrt(mu**2-(M+b)**2)-phi)
     return n
+
 
 @jit(nopython=True)
 def n_max_minus(M,b,L,mu,phi):
@@ -149,31 +120,145 @@ def n_max_minus(M,b,L,mu,phi):
     return n
 
 
+@jit(nopython=True)
+def _integrate_mode_scalar(F_func_code, n, M, b, L, phi, mu, N_h, p_left, p_right):
+    """
+    Интегрирует по [p_left, p_right] методом средних точек.
+    F_func_code: 0 = Fpn_plus, 1 = Fpn_minus
+    """
+    if p_right <= p_left:
+        return 0.0
+    dp = (p_right - p_left) / N_h
+    total = 0.0
+    for i in range(N_h):
+        p = p_left + (i + 0.5) * dp
+        if F_func_code == 0:
+            val = Fpn_plus(p, n, M, b, L, phi, mu)
+        else:
+            val = Fpn_minus(p, n, M, b, L, phi, mu)
+        if val > 0.0:
+            total += val
+    return total * dp
 
+
+@jit(nopython=True)
+def _compute_Unp(M, b, L, mu, phi, N_h):
+    """PLUS ветвь с корректной обработкой 1 или 2 корней."""
+    Nmax = n_max_plus(M, b, L, mu, phi)
+    if Nmax < 0:
+        return 0.0
+
+    total = 0.0
+    for n in range(Nmax + 1):
+        Sn = np.sqrt(mu**2 - (2.0 * np.pi * n / L)**2)
+        F0 = Fpn_plus(0.0, n, M, b, L, phi, mu)
+
+        two_roots = False
+        if abs(b) > M and b < 0 and F0 < 0.0:
+            val_left = (abs(b) - Sn)**2 - M**2
+            val_right = (abs(b) + Sn)**2 - M**2
+            if val_left >= 0.0 and val_right >= 0.0:
+                two_roots = True
+                p_left = np.sqrt(val_left)
+                p_right = np.sqrt(val_right)
+
+        if not two_roots:
+            if b >= 0:
+                pr_sq = (Sn - b)**2 - M**2
+            else:
+                pr_sq = (Sn + abs(b))**2 - M**2
+            if pr_sq < 0.0:
+                continue
+            p_left = 0.0
+            p_right = np.sqrt(pr_sq)
+
+        integral = _integrate_mode_scalar(0, n, M, b, L, phi, mu, N_h, p_left, p_right)
+        if n == 0:
+            total += integral
+        else:
+            total += 2.0 * integral
+    return total
+
+
+@jit(nopython=True)
+def _compute_Unm(M, b, L, mu, phi, N_h):
+    """MINUS ветвь с корректной обработкой 1 или 2 корней."""
+    Nmax = n_max_minus(M, b, L, mu, phi)
+    if Nmax < 0:
+        return 0.0
+
+    total = 0.0
+    for n in range(Nmax + 1):
+        Sn = np.sqrt(mu**2 - (2.0 * np.pi * n / L)**2)
+        F0 = Fpn_minus(0.0, n, M, b, L, phi, mu)
+
+        two_roots = False
+        if abs(b) > M and b > 0 and F0 < 0.0:
+            val_left = (b - Sn)**2 - M**2
+            val_right = (b + Sn)**2 - M**2
+            if val_left >= 0.0 and val_right >= 0.0:
+                two_roots = True
+                p_left = np.sqrt(val_left)
+                p_right = np.sqrt(val_right)
+
+        if not two_roots:
+            if b >= 0:
+                pr_sq = (Sn + b)**2 - M**2
+            else:
+                pr_sq = (Sn + abs(b))**2 - M**2
+            if pr_sq < 0.0:
+                continue
+            p_left = 0.0
+            p_right = np.sqrt(pr_sq)
+
+        integral = _integrate_mode_scalar(1, n, M, b, L, phi, mu, N_h, p_left, p_right)
+        if n == 0:
+            total += integral
+        else:
+            total += 2.0 * integral
+    return total
+
+
+@jit(nopython=True)
 def fun_Omega_L_mu_int(mu, L, b, M, phi=0, N_h=100):
-#============================================================================
-    Nmax_plus = n_max_plus(M,b,L,mu,phi)
-    if Nmax_plus<0:
-        Unp = 0
+    """
+    Numba-реализация Omega_mu_L с корректной обработкой двухкорневых случаев.
+    """
+    Unp = _compute_Unp(M, b, L, mu, phi, N_h)
+    Unm = _compute_Unm(M, b, L, mu, phi, N_h)
+    return -(2.0 / L) * (Unp + Unm)
+
+
+# ============================================================================
+# Утилиты для обратной совместимости и отладки (больше не используются внутри
+# fun_Omega_L_mu_int, но могут быть полезны внешним скриптам/ноутбукам)
+# ============================================================================
+
+def integration_limits_plus(M, b, mu, L, Nmax, phi):
+    n = np.linspace(0, Nmax, Nmax+1)
+    SQ = (mu**2-4*(np.pi/L)**2*(n+phi)**2)**(0.5)
+    if (b>0):
+        p_left = np.zeros_like(n)
+        p_right = np.sqrt((-b + SQ)**2 - M**2)
+    elif (b<0):
+        p_left = np.zeros_like(n)
+        p_right = np.sqrt((-b + SQ)**2 - M**2)
     else:
-        p_left, p_right = integration_limits_plus(M,b,mu,L,Nmax_plus,phi)
-        p_tens = np.stack((p_left, p_right))
-        bounds = p_tens.swapaxes(0,1)
-        midpoints, steps = divide_intervals(bounds, N_h)
-        n_plus = np.linspace(0, Nmax_plus, Nmax_plus+1)
-        F_tp = Fpn_plus_numpy(midpoints,n_plus, M, b, L, phi, mu)*steps[:,np.newaxis]
-        Unp = 2*np.sum(F_tp[1:,:])+np.sum(F_tp[0,:])
-#============================================================================
-    Nmax_plus = n_max_minus(M,b,L,mu,phi)
-    if Nmax_plus<0:
-        Unm = 0
+        p_left = np.zeros_like(n)
+        p_right = (SQ**2 - M**2)**(0.5)
+    return p_left, p_right
+
+
+def integration_limits_minus(M, b, mu, L, Nmax, phi):
+    n = np.linspace(0, Nmax, Nmax+1)
+    SQ = (mu**2-4*(np.pi/L)**2*(n+phi)**2)**(0.5)
+    if (b>0):
+        p_left = np.zeros_like(n)
+        p_right = np.sqrt((b + SQ)**2 - M**2)
+    elif (b<0):
+        p_left = np.zeros_like(n)
+        p_right = np.sqrt((b + SQ)**2 - M**2)
     else:
-        p_left, p_right = integration_limits_minus(M,b,mu,L,Nmax_plus,phi)
-        p_tens = np.stack((p_left, p_right))
-        bounds = p_tens.swapaxes(0,1)
-        midpoints, steps = divide_intervals(bounds, N_h)
-        n_plus = np.linspace(0, Nmax_plus, Nmax_plus+1)
-        F_tp = Fpn_minus_numpy(midpoints,n_plus, M, b, L, phi, mu)*steps[:,np.newaxis]
-        Unm = 2*np.sum(F_tp[1:,:])+np.sum(F_tp[0,:])
-#============================================================================
-    return -(2/L)*(Unp+Unm)
+        p_left = np.zeros_like(n)
+        p_right = (SQ**2 - M**2)**(0.5)
+    return p_left, p_right
