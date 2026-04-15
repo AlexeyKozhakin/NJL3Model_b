@@ -29,10 +29,10 @@ def plot_Omega_vs_b(Omega_ren,
     plt.show()
 
 
-mu=5
-L=0.5
+mu=6
+L=5
 g=-1.0
-M=0.3828061119963231
+M=0
 
 plot_Omega_vs_b(Omega_ren,
                 M=M,
