@@ -1,0 +1,23 @@
+/* Дополнительные стили поверх Tailwind */
+
+input[type="number"],
+select {
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+input[type="number"]:focus,
+select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.js-plotly-plot .plotly .modebar {
+    left: 50%;
+    transform: translateX(-50%);
+}

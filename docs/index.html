@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NJL₃ Model — Numerical Report</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --bg: #fafafa;
+            --fg: #1a1a1a;
+            --muted: #555;
+            --accent: #2563eb;
+            --border: #ddd;
+            --code-bg: #f4f4f4;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg);
+            color: var(--fg);
+            line-height: 1.7;
+        }
+        header {
+            background: var(--accent);
+            color: white;
+            padding: 3rem 1rem;
+            text-align: center;
+        }
+        header h1 { margin: 0; font-size: 2.2rem; font-weight: 300; }
+        header p { margin: 0.5rem 0 0; opacity: 0.9; font-size: 1.1rem; }
+        nav {
+            background: white;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        nav ul {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            list-style: none;
+            margin: 0;
+            padding: 0.8rem 1rem;
+        }
+        nav a {
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 0.95rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            transition: 0.15s;
+        }
+        nav a:hover { color: var(--accent); background: #f0f4ff; }
+        main {
+            max-width: 850px;
+            margin: 0 auto;
+            padding: 2rem 1rem 4rem;
+        }
+        section { margin-bottom: 3rem; }
+        h2 {
+            font-size: 1.6rem;
+            font-weight: 400;
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 0.3rem;
+            margin-top: 0;
+        }
+        h3 { font-size: 1.25rem; font-weight: 500; margin-top: 2rem; }
+        p { margin: 1rem 0; }
+        .lead { font-size: 1.1rem; color: var(--muted); }
+        code, pre {
+            font-family: "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+            background: var(--code-bg);
+            border-radius: 4px;
+        }
+        code { padding: 0.15rem 0.35rem; font-size: 0.9em; }
+        pre {
+            padding: 1rem;
+            overflow-x: auto;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        ul, ol { padding-left: 1.5rem; }
+        li { margin: 0.4rem 0; }
+        figure {
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+        figure img {
+            max-width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        figcaption {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-top: 0.5rem;
+        }
+        .highlight {
+            background: #fff8e1;
+            border-left: 4px solid #ffc107;
+            padding: 1rem 1.2rem;
+            margin: 1.5rem 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        @media (max-width: 700px) {
+            .two-col { grid-template-columns: 1fr; }
+            header h1 { font-size: 1.6rem; }
+        }
+        a { color: var(--accent); }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.95rem;
+        }
+        th, td {
+            border: 1px solid var(--border);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+        }
+        th { background: #f0f0f0; font-weight: 500; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>NJL₃ Model in a Finite Box</h1>
+    <p>Численное исследование фазовой диаграммы с конечным химическим потенциалом и размером системы</p>
+</header>
+
+<nav>
+    <ul>
+        <li><a href="#abstract">Аннотация</a></li>
+        <li><a href="#model">Модель</a></li>
+        <li><a href="#numerics">Численные методы</a></li>
+        <li><a href="#code">Код</a></li>
+        <li><a href="#results">Результаты</a></li>
+        <li><a href="#web">Веб-интерфейс</a></li>
+        <li><a href="#references">Ссылки</a></li>
+    </ul>
+</nav>
+
+<main>
+
+<section id="abstract">
+    <h2>Аннотация</h2>
+    <p class="lead">
+        В работе численно изучается фазовая диаграмма трёхмерной модели Намбу–Джона–Лазинио (NJL₃)
+        в прямоугольной области с периодическими граничными условиями.
+        Основное внимание уделено нахождению минимума полного термодинамического потенциала
+        \( \Omega(b,M) \) при фиксированных химическом потенциале \( \mu \) и размере системы \( L \).
+    </p>
+    <p>
+        В процессе исследования была обнаружена серьёзная численная проблема:
+        локальный оптимизатор <code>Nelder–Mead</code> систематически пропускал узкие острые ямы
+        в ландшафте потенциала, что приводило к ложному выводу \( b_{\min}=0 \) в значительной части
+        фазовой диаграммы для отталкивающего взаимодействия \( g=-1 \).
+        Переход на глобальный оптимизатор <code>differential_evolution</code>
+        кардинально изменил картину: доля точек с ненулевым \( b \) возросла с 15 % до 60 %
+        на тестовой сетке \( 20\times20 \).
+    </p>
+    <p>
+        Помимо прототипов на Python, разработан чистый клиентский веб-интерфейс
+        (GitHub Pages), позволяющий интерактивно исследовать тепловые кармы и срезы
+        потенциала в браузере без серверного бэкенда.
+    </p>
+</section>
+
+<section id="model">
+    <h2>1. Физическая модель</h2>
+
+    <h3>1.1. Лагранжиан</h3>
+    <p>
+        Рассматривается модель NJL₃ в \( 2+1 \) измерениях с одной фермионной двойкой:
+    </p>
+    \[
+    \mathcal{L} = \bar\psi (i\hat\partial - m_0)\psi
+    + \frac{G}{2}\bigl[(\bar\psi\psi)^2 + (\bar\psi i\gamma_5 \psi)^2\bigr] .
+    \]
+    <p>
+        В безразмерных единицах константа связи обозначается \( g \).
+        В работе исследуются два противоположных случая:
+    </p>
+    <ul>
+        <li><strong>\( g = +1 \)</strong> — притягивающее взаимодействие, способствующее динамическому образованию массы.</li>
+        <li><strong>\( g = -1 \)</strong> — отталкивающее взаимодействие, при котором член \( M^2/(2g) = -M^2/2 \)
+            <em>стимулирует</em> рост массы и приводит к неожиданной фазовой структуре с \( b>0 \).</li>
+    </ul>
+
+    <h3>1.2. Термодинамический потенциал</h3>
+    <p>
+        Полный (перенормированный) потенциал записывается как сумма четырёх вкладов:
+    </p>
+    \[
+    \Omega_{\rm ren}(b,M) = \frac{M^2}{2g} + \Delta U(M,b)
+    + \Omega_L^{\rm phys}(M,b) + \Omega_{\mu L}^{\rm phys}(M,b) .
+    \]
+
+    <p>Каждый член имеет следующий физический смысл:</p>
+    <table>
+        <tr><th>Вклад</th><th>Смысл</th></tr>
+        <tr><td>\( M^2/(2g) \)</td><td>Классический (деревянный) потенциал массы.</td></tr>
+        <tr><td>\( \Delta U(M,b) \)</td><td>Контрчлен Уайтинга — вычитание вклада бесконечного объёма с вакуумной нормировкой.</td></tr>
+        <tr><td>\( \Omega_L^{\rm phys} \)</td><td>Разность конечно-объёмных вкладов: \( \Omega_L(M,b) - \Omega_L(0,b) + \Omega_L(0,0) \).</td></tr>
+        <tr><td>\( \Omega_{\mu L}^{\rm phys} \)</td><td>Аналогичная разность для плотно-конечного вклада при \( \mu > 0 \).</td></tr>
+    </table>
+
+    <h3>1.3. Модовое разложение (\( \phi = 0 \))</h3>
+    <p>
+        Для квантования по направлению конечной длины \( L \) вводятся дискретные моды
+        \( p_2 = 2\pi n / L \) (\( n = 0,1,\dots \)).
+        После интегрирования по непрерывному импульсу \( p_1 \) вклад одной моды
+        сводится к интегралу от функций
+    </p>
+    \[
+    F_{n}^{\pm}(p_1) = \frac{1}{2\pi}
+    \Bigl[ \mu - \sqrt{(E_1 \pm b)^2 + \Bigl(\frac{2\pi n}{L}\Bigr)^2} \Bigr]
+    \theta(\dots) ,
+    \qquad E_1 = \sqrt{M^2 + p_1^2} .
+    \]
+    <p>
+        В зависимости от соотношения параметров \( |b|, M, \mu \)
+        интегрирование ведётся либо от \( p_1 = 0 \) (один корень),
+        либо по двум разнесённым интервалам (два корня).
+        Это различие критически важно для корректного подсчёта
+        \( \Omega_{\mu L} \) при \( |b| > M \).
+    </p>
+</section>
+
+<section id="numerics">
+    <h2>2. Численные методы</h2>
+
+    <h3>2.1. Схемы интегрирования</h3>
+    <p>
+        Все многомерные интегралы вычисляются методом <strong>средних точек</strong>
+        (midpoint rule) на равномерных сетках:
+    </p>
+    <ul>
+        <li><code>Omega_L</code>: двумерный интеграл по \( p_1, p_3 \) (компактификация \( u = p/(1+p) \)),
+            сетка \( N_{h}^{p1} \times N_{h}^{p2} \).</li>
+        <li><code>dU</code>: двумерный интеграл по \( p, \phi \) (контрчлен),
+            сетка \( N_{h}^{p} \times N_{h}^{\phi} \).</li>
+        <li><code>Omega_mu_L</code>: сумма по модам \( n \) и одномерное интегрирование
+            по \( p_1 \) в пределах аналитически найденных границ, сетка \( N_{h}^{\mu} \).</li>
+    </ul>
+    <p>
+        Слагаемое <code>Omega_mu_L</code> было переписано с векторизованного NumPy
+        на чистый Python с декоратором <code>@jit(nopython=True)</code> (Numba).
+        Это позволило корректно обработать двухкорневые ветви внутри цикла по модам
+        и сделало вычисление практически мгновенным после JIT-компиляции.
+    </p>
+
+    <h3>2.2. Оптимизация: от Nelder–Mead к Differential Evolution</h3>
+    <p>
+        Изначально для поиска \( (M_{\min}, b_{\min}) \) использовался
+        двухэтапный метод: грубая сетка \( N_{\rm grid} \times N_{\rm grid} \)
+        плюс локальная доводка <code>scipy.optimize.minimize(method='Nelder-Mead')</code>.
+    </p>
+
+    <div class="highlight">
+        <strong>Обнаруженная проблема.</strong>
+        При \( g = -1 \) потенциал \( \Omega(b,M) \) содержит очень узкие острые ямы
+        вблизи \( b \approx 4\text{–}8,\; M \approx 0.1\text{–}1.5 \).
+        Если стартовая точка Nelder–Mead отклоняется от ямы даже на \( \Delta b \sim 0.1 \),
+        значение потенциала быстро становится <em>хуже</em>, чем в \( (0,0) \),
+        и оптимизатор «скатывается» обратно к нулевому \( b \).
+        В результате адаптивная фазовая диаграмма ложно показывала \( b_{\min}=0 \)
+        в тех областях, где истинный минимум лежал на \( b>0 \).
+    </div>
+
+    <p>
+        Для устранения этого дефекта оптимизатор был заменён на
+        <code>scipy.optimize.differential_evolution</code>:
+    </p>
+    <ul>
+        <li>Глобальная популяционная эволюция — исследует всё пространство параметров.</li>
+        <li>Параллельное вычисление энергий популяции через <code>workers=-1</code>.</li>
+        <li>Финальная полировка (polish) локальным методом для точной доводки минимума.</li>
+    </ul>
+
+    <h3>2.3. Сравнение на тестовой сетке</h3>
+    <p>
+        На области \( \mu\in[2,5],\; L\in[0.1,3] \) с шагом \( 20\times20 \)
+        (всего 400 точек) было выполнено прямое сравнение двух оптимизаторов:
+    </p>
+    <table>
+        <tr><th>Метод</th><th>Точек с \( b_{\min}>0.1 \)</th><th>Доля</th></tr>
+        <tr><td>Nelder–Mead (multistart, 4 старта)</td><td>61 / 400</td><td>15 %</td></tr>
+        <tr><td>Differential Evolution</td><td>238 / 400</td><td>60 %</td></tr>
+    </table>
+
+    <figure>
+        <img src="../notebooks/output/13_quick_de_proof.png" alt="NM vs DE comparison">
+        <figcaption>
+            Сравнение <code>Nelder–Mead</code> (слева) и <code>differential_evolution</code> (справа)
+            на одной и той же тестовой области. Верхний ряд — \( b_{\min}(\mu,L) \),
+            нижний — \( M_{\min}(\mu,L) \).
+        </figcaption>
+    </figure>
+</section>
+
+<section id="code">
+    <h2>3. Структура кода</h2>
+
+    <h3>3.1. Ядро: <code>functions/</code></h3>
+    <ul>
+        <li><code>Omega_L.py</code> — вычисление конечно-объёмного вклада \( \Omega_L \)
+            через двойной интеграл с компактификацией переменных.</li>
+        <li><code>dU.py</code> — контрчлен Уайтинга \( \Delta U(M,b) \).
+            Интегрируется по полярным координатам с якобианом.</li>
+        <li><code>Omega_mu_L.py</code> — основное вычислительное бутылочное горлышко,
+            теперь полностью ускорено Numba.
+            Содержит корректную обработку одно- и двухкорневых случаев
+            для <code>plus</code> и <code>minus</code> ветвей.</li>
+        <li><code>utils.py</code> — вспомогательные функции (середины отрезков).</li>
+    </ul>
+
+    <h3>3.2. Тесты: <code>tests/</code></h3>
+    <p>
+        pytest-набор покрывает три критических аспекта рефакторинга:
+    </p>
+    <ul>
+        <li><code>test_b_symmetry.py</code> — симметрия \( b \to -b \) полного потенциала.</li>
+        <li><code>test_integration_limits.py</code> — аналитические пределы интегрирования
+            совпадают с кодом.</li>
+        <li><code>test_two_roots.py</code> — численное интегрирование «в лоб» подтверждает
+            корректность двухкорневой логики.</li>
+    </ul>
+    <p>Результат: <strong>30 passed, 4 skipped</strong>.</p>
+
+    <h3>3.3. Ноутбуки-прототипы: <code>notebooks/</code></h3>
+    <ul>
+        <li><code>07_component_analysis.py</code> — сканирование отдельных вкладов.</li>
+        <li><code>08_phase_diagram_prototype.py</code> — равномерно-сеточные фазовые диаграммы.</li>
+        <li><code>09_adaptive_phase_diagram.py</code> — адаптивная quadtree-диаграмма
+            с измельчением на фазовых границах (теперь с <code>differential_evolution</code>).</li>
+        <li><code>10_omega_heatmap.py</code> — тепловые карты \( \Omega(b,M) \)
+            при фиксированных \( \mu, L \).</li>
+        <li><code>11_verify_fix.py</code>, <code>13_quick_de_proof.py</code> —
+            верификация перехода на DE.</li>
+    </ul>
+</section>
+
+<section id="results">
+    <h2>4. Результаты</h2>
+
+    <h3>4.1. Фазовая диаграмма для \( g = -1 \)</h3>
+    <p>
+        Для отталкивающего взаимодействия система демонстрирует два ярко выраженных режима:
+    </p>
+    <ul>
+        <li><strong>Низкая плотность / небольшие \( L \):</strong>
+            конденсат массы с \( M \approx 3.2 \), \( b = 0 \).</li>
+        <li><strong>Высокая плотность / малые \( L \):</strong>
+            масса резко растёт (до \( \sim 9 \)), причём во многих точках
+            минимум достигается при <strong>ненулевом</strong> \( b \).</li>
+    </ul>
+
+    <figure>
+        <img src="../notebooks/output/09_adaptive_diagram_m1_0.png" alt="Adaptive diagram">
+        <figcaption>
+            Адаптивная фазовая диаграмма \( M_{\min}(\mu,L) \) (слева)
+            и \( b_{\min}(\mu,L) \) (справа) для \( g=-1 \),
+            пересчитанная с глобальным оптимизатором.
+        </figcaption>
+    </figure>
+
+    <h3>4.2. Ключевое наблюдение: \( b_{\min}>0 \)</h3>
+    <p>
+        На правой панели видны характерные «языки» и каскадные структуры
+        с \( b_{\min} \approx 3\text{–}6 \).
+        Эти структуры соответствуют последовательным модовым переходам:
+        при росте \( L \) дискретные моды \( n=0,1,2,\dots \)
+        по-разному влияют на положение минимума по \( b \).
+    </p>
+</section>
+
+<section id="web">
+    <h2>5. Интерактивный веб-интерфейс</h2>
+    <p>
+        Для удобства исследования и демонстрации результатов разработан
+        чисто клиентский веб-интерфейс на JavaScript + Plotly.js.
+        Он размещён на GitHub Pages и доступен по ссылке:
+    </p>
+    <p style="text-align:center; font-size:1.2rem;">
+        <a href="https://alexeykozhakin.github.io/NJL3Model_b/" target="_blank">
+            <strong>🌐 Открыть веб-интерфейс</strong>
+        </a>
+    </p>
+
+    <h3>Возможности интерфейса</h3>
+    <ul>
+        <li><strong>2D Heatmap</strong> — интерактивная тепловая карта \( \Omega(b,M) \)
+            с возможностью увеличения (zoom) и клика для выбора точки среза.</li>
+        <li><strong>1D Срезы</strong> — графики \( \Omega(M) \) при фиксированном \( b \)
+            и \( \Omega(b) \) при фиксированном \( M \).
+            Можно включать/выключать отдельные вклады
+            (\( \Omega_{\mu L}, \Delta U, \Omega_L, M^2/2g \)).</li>
+        <li><strong>Компоненты</strong> — отдельные тепловые карты каждого слагаемого.</li>
+    </ul>
+    <p>
+        Расчёт выполняется непосредственно в браузере:
+        сетка по умолчанию \( 50\times50 \) строится за 2–8 секунд.
+        Никакого серверного бэкенда не требуется.
+    </p>
+</section>
+
+<section id="references">
+    <h2>6. Ссылки и инструменты</h2>
+    <ul>
+        <li>Язык: Python 3.11 + NumPy + SciPy + Numba + Matplotlib</li>
+        <li>Веб: vanilla JavaScript, Plotly.js, Tailwind CSS</li>
+        <li>Репозиторий:
+            <a href="https://github.com/alexeykozhakin/NJL3Model_b">github.com/alexeykozhakin/NJL3Model_b</a>
+        </li>
+    </ul>
+
+    <h3>Ключевые научные работы</h3>
+    <ul>
+        <li>Nambu Y., Jona-Lasinio G. Dynamical Model of Elementary Particles Based on an Analogy with Superconductivity. I // Phys. Rev. 1961. V. 122. P. 345.</li>
+        <li>Whiting F. C. Finite-size effects in the Nambu–Jona-Lasinio model // Phys. Rev. D. 1995. V. 51. P. 3094.</li>
+    </ul>
+</section>
+
+</main>
+
+</body>
+</html>
