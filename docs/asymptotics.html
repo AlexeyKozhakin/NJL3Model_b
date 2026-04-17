@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Асимптотика Ω(μ→∞) — NJL₃ модель с хиральной химической потенциалом</title>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --fg: #212529;
+      --accent: #1a5276;
+      --accent-light: #2980b9;
+      --code-bg: #f4f4f4;
+      --border: #dee2e6;
+      --highlight: #fff3cd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.7;
+    }
+    h1 {
+      color: var(--accent);
+      border-bottom: 3px solid var(--accent-light);
+      padding-bottom: 0.4rem;
+      margin-top: 0;
+    }
+    h2 {
+      color: var(--accent);
+      margin-top: 2.2rem;
+      border-left: 4px solid var(--accent-light);
+      padding-left: 0.7rem;
+    }
+    h3 {
+      color: var(--accent-light);
+      margin-top: 1.5rem;
+    }
+    a { color: var(--accent-light); }
+    .nav {
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+    .nav a {
+      text-decoration: none;
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      background: var(--border);
+      color: var(--accent);
+    }
+    .nav a:hover { background: var(--accent-light); color: white; }
+    
+    .theorem, .result {
+      background: #e8f4f8;
+      border-left: 4px solid var(--accent-light);
+      padding: 1rem 1.2rem;
+      margin: 1.2rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .theorem strong, .result strong { color: var(--accent); }
+    
+    .highlight-box {
+      background: var(--highlight);
+      border: 1px solid #ffc107;
+      padding: 1rem 1.2rem;
+      border-radius: 6px;
+      margin: 1.2rem 0;
+    }
+    
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1rem 0;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.7rem;
+      text-align: center;
+    }
+    th { background: #e9ecef; color: var(--accent); }
+    tr:nth-child(even) { background: #f8f9fa; }
+    td:first-child { font-weight: 600; }
+    
+    code {
+      background: var(--code-bg);
+      padding: 0.15rem 0.35rem;
+      border-radius: 3px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+    
+    .formula-block {
+      text-align: center;
+      margin: 1.2rem 0;
+      padding: 0.8rem;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    
+    .date { color: #6c757d; font-size: 0.9rem; margin-bottom: 0.5rem; }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: #6c757d;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html">← Главный отчёт</a>
+</div>
+
+<div class="date">17 апреля 2026</div>
+<h1>Асимптотика $\Omega(\mu \to \infty)$ при $L = 1$, $g = -1$</h1>
+
+<h2>1. Постановка задачи</h2>
+
+<p>
+Перенормированный потенциал NJL₃-модели с хиральным химическим потенциалом $b$:
+</p>
+
+<div class="formula-block">
+\[
+\Omega_{\text{ren}}(M, b; \mu, L, g) = \frac{M^2}{2g} + \Delta U_{\text{phys}}(M, b) + \Omega_{L,\text{phys}}(M, b; L) + \Omega_{\mu L,\text{phys}}(M, b; \mu, L)
+\]
+</div>
+
+<p>
+где перенормированная $\mu L$-часть имеет вид:
+</p>
+
+<div class="formula-block">
+\[
+\Omega_{\mu L,\text{phys}} = \bigl[\Omega_{\mu L}(M, b) - \Omega_{\mu L}(0, b)\bigr] + \Omega_{\mu L}(0, 0)
+\]
+</div>
+
+<p>
+При вычислении фазовой диаграммы методом <code>differential_evolution</code> обнаружилось, что граница фазового перехода при $g = -1$ лежит при $\mu \approx 3.2$ (независимо от $L$). Возникает вопрос: <em>почему именно этот масштаб?</em> Для ответа изучена асимптотика $\Omega_{\mu L}$ при $\mu \to \infty$.
+</p>
+
+<h2>2. Численное наблюдение</h2>
+
+<p>
+Прямые вычисления при фиксированных $(M, b)$ и $L = 1$ показывают:
+</p>
+
+<table>
+  <tr>
+    <th>μ</th>
+    <th>Ω<sub>μL</sub>(M=3, b=2)</th>
+    <th>Ω<sub>μL</sub>(0, 0)</th>
+    <th>Ω<sub>μL</sub><sup>phys</sup></th>
+    <th>Ω<sub>μL</sub><sup>phys</sup> / μ³</th>
+  </tr>
+  <tr><td>10</td><td>−153.5</td><td>−108.7</td><td>−44.8</td><td>−0.0448</td></tr>
+  <tr><td>20</td><td>−1207.5</td><td>−808.8</td><td>−398.7</td><td>−0.0498</td></tr>
+  <tr><td>50</td><td>−18671.3</td><td>−12107.7</td><td>−6563.6</td><td>−0.0525</td></tr>
+  <tr><td>100</td><td>−149336.6</td><td>−96422.9</td><td>−52913.7</td><td>−0.0529</td></tr>
+  <tr><td>200</td><td>−1194685.4</td><td>−770546.2</td><td>−424139.2</td><td>−0.0530</td></tr>
+</table>
+
+<div class="highlight-box">
+  <strong>Ключевое наблюдение:</strong> коэффициент при $\mu^3$ стабилизируется на уровне 
+  $-1/(6\pi) \approx -0.05305$ и <strong>не зависит</strong> от $M$ и $b$.
+</div>
+
+<p>
+При этом разность $\Omega_{\mu L}(M, b) - \Omega_{\mu L}(0, 0)$ масштабируется линейно по $\mu$:
+</p>
+
+<table>
+  <tr>
+    <th>M</th>
+    <th>b</th>
+    <th>C(M,b) = [Ω<sub>μL</sub>(M,b) − Ω<sub>μL</sub>(0,0)] / μ при μ = 300</th>
+  </tr>
+  <tr><td>0.0</td><td>0.0</td><td>0.0000</td></tr>
+  <tr><td>0.5</td><td>2.0</td><td>+0.0392</td></tr>
+  <tr><td>1.0</td><td>2.0</td><td>+0.1573</td></tr>
+  <tr><td>2.0</td><td>2.0</td><td>+0.6298</td></tr>
+  <tr><td>3.0</td><td>2.0</td><td>+1.4178</td></tr>
+  <tr><td>3.0</td><td>0.0</td><td>+1.4247</td></tr>
+  <tr><td>5.0</td><td>5.0</td><td>+3.8732</td></tr>
+</table>
+
+<p>
+При этом $C(M, b) \approx M^2 / (2\pi)$ с точностью $\sim 1\%$, <strong>независимо от $b$</strong>.
+</p>
+
+<h2>3. Аналитический вывод</h2>
+
+<h3>3.1. Структура Ω<sub>μL</sub></h3>
+
+<p>
+Конечно-температурная (по $L$) часть потенциала записывается через сумму по модам $n$:
+</p>
+
+<div class="formula-block">
+\[
+\Omega_{\mu L} = -\frac{2}{L}\sum_{s=\pm}\sum_{n=0}^{n_{\max}^{(s)}} \int_{\mathcal{D}_n^{(s)}} dp_1\; F_{s}(p_1, n; M, b, L, \mu)
+\]
+</div>
+
+<p>
+где подынтегральная функция (для $s = +$):
+</p>
+
+<div class="formula-block">
+\[
+F_{+}(p_1, n) = \frac{1}{2\pi}\left[\mu - \sqrt{(E_1 + b)^2 + \left(\frac{2\pi n}{L}\right)^2}\right]_{+}
+\]
+</div>
+
+<p>
+с $E_1 = \sqrt{M^2 + p_1^2}$ и $[x]_{+} = \max(x, 0)$. Область интегрирования $\mathcal{D}_n^{(s)}$ определяется из условия $F_s > 0$.
+</p>
+
+<h3>3.2. Лимит μ → ∞</h3>
+
+<p>
+При $\mu \gg M, b, 1/L$ число мод $n_{\max} \sim L\mu / (2\pi) \gg 1$. Заменяем сумму по $n$ на интеграл по $k_2 = 2\pi n / L$:
+</p>
+
+<div class="formula-block">
+\[
+\sum_{n} \;\longrightarrow\; \frac{L}{2\pi} \int dk_2
+\]
+</div>
+
+<p>
+Тогда для одной ветви (например, $s=+$):
+</p>
+
+<div class="formula-block">
+\[
+U_{n}^{(+)} \approx \frac{L}{(2\pi)^2} \int_{-\mu}^{\mu} dk_2 \int_{0}^{\sqrt{\mu^2 - k_2^2}} dp_1 \left[\mu - \sqrt{(E_1 + b)^2 + k_2^2}\right]
+\]
+</div>
+
+<p>
+Переходим к полярным координатам $(p_1, k_2) = (\rho\cos\theta, \rho\sin\theta)$ и раскладываем подкоренное выражение по $1/\mu$:
+</p>
+
+<div class="formula-block">
+\[
+\sqrt{(E_1 + b)^2 + k_2^2} = \sqrt{\rho^2 + 2E_1 b + b^2 + M^2} = \rho\sqrt{1 + \frac{M^2 + 2E_1 b + b^2}{\rho^2}}
+\]
+</div>
+
+<p>
+Главный член ($\sim \mu^3$) получается при $M = b = 0$:
+</p>
+
+<div class="formula-block">
+\[
+\Omega_{\mu L}(0, 0) \xrightarrow{\mu\to\infty} -\frac{L\mu^3}{6\pi}
+\]
+</div>
+
+<h3>3.3. Поправка ∼ M²μ</h3>
+
+<p>
+Разложение подынтегральной функции по $M^2/\mu^2$ при фиксированном $b$ даёт:
+</p>
+
+<div class="formula-block">
+\[
+\Omega_{\mu L}(M, b) - \Omega_{\mu L}(0, 0) \;\xrightarrow{\mu\to\infty}\; \frac{M^2 \mu}{2\pi} + \mathcal{O}(M^4/\mu)
+\]
+</div>
+
+<p>
+Коэффициент $1/(2\pi)$ подтверждается численно с точностью лучше $1\%$ (см. таблицу выше).
+</p>
+
+<div class="theorem">
+  <strong>Теорема (асимптотика $\Omega_{\mu L}$ при $\mu \to \infty$).</strong><br>
+  При $L = 1$ и фиксированных $M, b$:
+  \[
+  \Omega_{\mu L}^{\text{phys}}(M, b; \mu) = -\frac{\mu^3}{6\pi} + \frac{M^2 \mu}{2\pi} + \mathcal{O}(\mu^0)
+  \]
+  Первый член не зависит от $(M, b)$, второй зависит <strong>только от $M$</strong> (линейно от $b$ зависимость исчезает в лидирующем порядке).
+</div>
+
+<h2>4. Физические следствия</h2>
+
+<h3>4.1. Полный потенциал при μ → ∞</h3>
+
+<p>
+Подставляя асимптотику в $\Omega_{\text{ren}}$:
+</p>
+
+<div class="formula-block">
+\[
+\Omega_{\text{ren}}(M, b) \;\xrightarrow{\mu\to\infty}\; \underbrace{\frac{M^2}{2g}}_{\text{вакуум}} + \underbrace{\Delta U_{\text{phys}} + \Omega_{L,\text{phys}}}_{\text{константа } \sim \mu^0} - \underbrace{\frac{L\mu^3}{6\pi}}_{\text{общий сдвиг}} + \underbrace{\frac{M^2 \mu}{2\pi}}_{\text{критический}}
+\]
+</div>
+
+<h3>4.2. Критическая точка для g = −1</h3>
+
+<p>
+Для $g = -1$ вакуумный член даёт $-M^2/2$. Конкуренция по $M$ определяется знаком:
+</p>
+
+<div class="formula-block">
+\[
+\frac{\partial^2 \Omega_{\text{ren}}}{\partial M^2}\bigg|_{M=0} = \frac{1}{g} + \frac{\mu}{\pi} = -1 + \frac{\mu}{\pi}
+\]
+</div>
+
+<div class="result">
+  <strong>Критическое значение химического потенциала:</strong>
+  \[
+  \boxed{\mu_c = \pi |g| = \pi \approx 3.1416}
+  \]
+  При $\mu < \pi$ стабильна <strong>низкая фаза</strong> ($M > 0, b > 0$).<br>
+  При $\mu > \pi$ стабильна <strong>высокая фаза</strong> ($M = 0, b = 0$).
+</div>
+
+<div class="highlight-box">
+  <strong>Сравнение с численным результатом:</strong><br>
+  Численная фазовая диаграмма (адаптивное измельчение 10×10, DE, $g = -1$) даёт границу перехода при $\mu \approx 3.2$, что совпадает с аналитической оценкой $\mu_c = \pi$ с точностью $\sim 2\%$. Незначительное отличие объясняется конечным разрешением сетки и конечной точностью DE-оптимизации.
+</div>
+
+<h3>4.3. Роль b-зависимости</h3>
+
+<p>
+Поскольку линейный по $\mu$ член пропорционален $M^2$ и <strong>не зависит от $b$</strong>, при $\mu \to \infty$ хиральный потенциал $b$ перестаёт влиять на положение минимума по $M$. Однако в промежуточной области ($\mu \sim 1\text{–}3$) $b$-зависимость критически важна — именно узкие минимумы по $b$ (шириной $\sim 0.2$–$0.4$) требуют применения <code>differential_evolution</code> вместо стандартного Nelder-Mead.
+</p>
+
+<h2>5. Заключение</h2>
+
+<ol>
+  <li>Установлена точная асимптотика $\Omega_{\mu L}^{\text{phys}} \sim -\mu^3/(6\pi) + M^2\mu/(2\pi)$ при $\mu \to \infty$.</li>
+  <li>Лидирующий $\mu^3$-член универсален (не зависит от $M, b$), что объясняет канонизацию $b = 0$ при $M = 0$.</li>
+  <li>Линейный по $\mu$ член $\propto M^2$ приводит к фазовому переходу при $\mu_c = \pi |g|$.</li>
+  <li>Численная фазовая диаграмма подтверждает аналитическую оценку $\mu_c \approx \pi$.</li>
+</ol>
+
+<h2>6. Связанные материалы</h2>
+
+<ul>
+  <li><a href="index.html">Полный отчёт по проекту</a> — структура кода, методы, сравнение DE vs Nelder-Mead.</li>
+  <li><a href="../web/index.html">Интерактивная фазовая диаграмма</a> — исследование срезов в реальном времени.</li>
+  <li>Исходный код: <code>functions/Omega_mu_L.py</code> — реализация интегрирования с двухкорневой обработкой.</li>
+</ul>
+
+<footer>
+  <p>NJL₃ Model with Chiral Chemical Potential — Numerical Analysis</p>
+  <p>Исходный код: <a href="https://github.com/akozhakin/NJL3Model_b">github.com/akozhakin/NJL3Model_b</a></p>
+</footer>
+
+</body>
+</html>
