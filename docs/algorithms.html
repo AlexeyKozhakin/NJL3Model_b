@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Алгоритмы и интегралы — NJL₃ модель</title>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --fg: #212529;
+      --accent: #1a5276;
+      --accent-light: #2980b9;
+      --code-bg: #f4f4f4;
+      --border: #dee2e6;
+      --highlight: #e8f4f8;
+      --warning: #fff3cd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      max-width: 950px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.7;
+    }
+    h1 {
+      color: var(--accent);
+      border-bottom: 3px solid var(--accent-light);
+      padding-bottom: 0.4rem;
+      margin-top: 0;
+    }
+    h2 {
+      color: var(--accent);
+      margin-top: 2.5rem;
+      border-left: 4px solid var(--accent-light);
+      padding-left: 0.7rem;
+    }
+    h3 {
+      color: var(--accent-light);
+      margin-top: 1.8rem;
+    }
+    h4 {
+      color: #555;
+      margin-top: 1.2rem;
+    }
+    a { color: var(--accent-light); }
+    .nav {
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+    .nav a {
+      text-decoration: none;
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      background: var(--border);
+      color: var(--accent);
+    }
+    .nav a:hover { background: var(--accent-light); color: white; }
+    
+    .formula-block {
+      text-align: center;
+      margin: 1.2rem 0;
+      padding: 1rem;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    
+    .highlight-box {
+      background: var(--highlight);
+      border-left: 4px solid var(--accent-light);
+      padding: 1rem 1.2rem;
+      margin: 1.2rem 0;
+      border-radius: 0 6px 6px 0;
+    }
+    
+    .warning-box {
+      background: var(--warning);
+      border: 1px solid #ffc107;
+      padding: 1rem 1.2rem;
+      border-radius: 6px;
+      margin: 1.2rem 0;
+    }
+    
+    code {
+      background: var(--code-bg);
+      padding: 0.15rem 0.35rem;
+      border-radius: 3px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+    
+    pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+    
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1rem 0;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.7rem;
+      text-align: left;
+    }
+    th { background: #e9ecef; color: var(--accent); }
+    tr:nth-child(even) { background: #f8f9fa; }
+    
+    .param-name { font-family: monospace; font-weight: bold; color: var(--accent); }
+    .file-ref { font-family: monospace; background: var(--code-bg); padding: 0.1rem 0.3rem; }
+    
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: #6c757d;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html">← Главный отчёт</a>
+  <a href="asymptotics.html" style="margin-left: 0.5rem;">Асимптотика →</a>
+</div>
+
+<h1>Алгоритмы, интегралы и структура кода</h1>
+
+<h2>1. Общая структура потенциала</h2>
+
+<p>
+Перенормированный потенциал записывается как сумма четырёх вкладов:
+</p>
+
+<div class="formula-block">
+$$
+\Omega_{\text{ren}}(M, b; \mu, L, g) = \underbrace{\frac{M^2}{2g}}_{\text{вакуум}} + \underbrace{\Delta U_{\text{phys}}}_{\text{контрчлен}} + \underbrace{\Omega_{L,\text{phys}}}_{\text{размерные моды}} + \underbrace{\Omega_{\mu L,\text{phys}}}_{\text{плотность/μ-член}}
+$$
+</div>
+
+<p>
+Каждый физический (перенормированный) член строится по схеме <strong>вычитания</strong>:
+</p>
+
+<div class="formula-block">
+$$
+X_{\text{phys}}(M, b) = X(M, b) - X(0, b) + X(0, 0)
+$$
+</div>
+
+<p>
+Это гарантирует, что $\Omega_{\text{ren}}(0, 0) = 0$ и при $M = 0$ все $b$-зависимости взаимно сокращаются.
+</p>
+
+<div class="warning-box">
+  <strong>Важно:</strong> при $M = 0$ потенциал <strong>математически не зависит от $b$</strong>. Поэтому в численном алгоритме введена канонизация: если найденный минимум имеет $M < 0.05$, принудительно ставим $M = 0, b = 0$.
+</div>
+
+
+<h2>2. Вакуумный член</h2>
+
+<div class="formula-block">
+$$
+\Omega_{\text{vac}} = \frac{M^2}{2g}
+$$
+</div>
+
+<p>
+При $g = -1$ (отталкивающее взаимодействие) этот член <strong>отрицателен</strong> и стимулирует ненулевую массу $M > 0$.
+</p>
+
+
+<h2>3. Контрчлен ΔU (functions/dU.py)</h2>
+
+<h3>3.1. Что вычисляет</h3>
+
+<p>
+$\Delta U$ — это ультрафиолетовый контрчлен, компенсирующий расходимости. В модели он имеет вид:
+</p>
+
+<div class="formula-block">
+$$
+\Delta U(M, b) = -\frac{N_c}{\pi} \int_0^{\Lambda} dp \, p \left[ E_p(M, b) - E_p(0, b) \right]
+$$
+</div>
+
+<p>
+где $N_c = 2$ (число цветов), $\Lambda$ — ультрафиолетовый отрезок, а энергия:
+</p>
+
+<div class="formula-block">
+$$
+E_p(M, b) = \sqrt{(\sqrt{M^2 + p^2} + b)^2} = |\sqrt{M^2 + p^2} + b|
+$$
+</div>
+
+<h3>3.2. Алгоритм</h3>
+
+<p>
+В коде <span class="file-ref">functions/dU.py</span>:
+</p>
+
+<ul>
+  <li>Интеграл берётся методом средних точек (midpoint rule) с $N_h$ шагами</li>
+  <li>Пределы: $p \in [0, \Lambda_{\max}]$</li>
+  <li>Результат кэшируется через <code>lru_cache</code></li>
+</ul>
+
+<pre><code>def fun_dU_phys(b_vals, M_vals, N_h_p, N_h_phi):
+    # Интегрирование по p методом средних точек
+    for i in range(N_h):
+        p = p_left + (i + 0.5) * dp
+        E = sqrt((sqrt(M^2 + p^2) + b)^2)
+        total += E * p * dp
+    return -Nc/pi * total</code></pre>
+
+<p>
+<strong>Сложность:</strong> $O(N_h)$ на вызов. После JIT-компиляции Numba — <strong>~0.01 мс</strong>.
+</p>
+
+
+<h2>4. Размерные моды Ω_L (functions/Omega_L.py)</h2>
+
+<h3>4.1. Физический смысл</h3>
+
+<p>
+$\Omega_L$ описывает вклад компактифицированного измерения $L$ (размер системы в направлении $y$). При $L \to \infty$ этот член исчезает; при $L \to 0$ доминирует.
+</p>
+
+<div class="formula-block">
+$$
+\Omega_L(L, M, b) = \frac{1}{L} \sum_{n=-\infty}^{\infty} \int_0^{\infty} dp \, p \ln\left[ 1 + \exp\left(-L \cdot E_{p,n}\right) \right]
+$$
+</div>
+
+<p>
+где $E_{p,n} = \sqrt{(\sqrt{M^2 + p^2} + b)^2 + \left(\frac{2\pi n}{L}\right)^2}$.
+</p>
+
+<h3>4.2. Алгоритм</h3>
+
+<p>
+В коде <span class="file-ref">functions/Omega_L.py</span>:
+</p>
+
+<ul>
+  <li>Сумма по модам $n$ обрывается при $n_{\max} \sim L \cdot \Lambda / (2\pi)$</li>
+  <li>Каждая мода: интеграл по $p$ методом средних точек</li>
+  <li>Симметрия: моды $+n$ и $-n$ дают одинаковый вклад (кроме $n=0$)</li>
+</ul>
+
+<pre><code>def fun_Omega_L(L, b, M, phi=0, N_h_p1=200, N_h_p2=200):
+    Nmax = floor(L * Lambda / (2*pi))
+    total = 0.0
+    for n in range(-Nmax, Nmax+1):
+        E_n = sqrt((sqrt(M^2+p^2)+b)^2 + (2*pi*n/L)^2)
+        integrand = p * ln(1 + exp(-L * E_n))
+        total += integral(integrand, p)
+    return total / L</code></pre>
+
+<p>
+<strong>Сложность:</strong> $O(N_{\max} \cdot N_h)$. После JIT — <strong>~0.05 мс</strong>.
+</p>
+
+
+<h2>5. μL-член — самая сложная часть (functions/Omega_mu_L.py)</h2>
+
+<h3>5.1. Физический смысл</h3>
+
+<p>
+$\Omega_{\mu L}$ описывает вклад химического потенциала $\mu$ при $T = 0$. Это аналог энергии заполнения Ферми:
+</p>
+
+<div class="formula-block">
+$$
+\Omega_{\mu L}(\mu, L, M, b) = -\frac{2}{L} \sum_{s=\pm} \sum_{n=0}^{n_{\max}^{(s)}} w_n \int_{\mathcal{D}_n^{(s)}} \frac{dp}{2\pi} \left[ \mu - E_{p,n}^{(s)} \right]_{+}
+$$
+</div>
+
+<p>
+где $[x]_{+} = \max(x, 0)$, $w_0 = 1$ и $w_{n>0} = 2$ (учёт $+n$ и $-n$), а энергия дисперсии:
+</p>
+
+<div class="formula-block">
+$$
+E_{p,n}^{(\pm)} = \sqrt{(\sqrt{M^2 + p^2} \pm b)^2 + \left(\frac{2\pi n}{L}\right)^2}
+$$
+</div>
+
+<h3>5.2. Подынтегральная функция</h3>
+
+<div class="formula-block">
+$$
+F_{\pm}(p, n) = \frac{1}{2\pi} \left[ \mu - E_{p,n}^{(\pm)} \right]_{+}
+$$
+</div>
+
+<h3>5.3. Ключевой вопрос: пределы интегрирования</h3>
+
+<p>
+Интеграл берётся не от 0 до $\infty$, а только там, где $F > 0$, то есть $E_{p,n} < \mu$.
+</p>
+
+<h4>Случай «один корень» (обычный)</h4>
+
+<p>
+Уравнение $E_{p,n} = \mu$ даёт один корень по $p$:
+</p>
+
+<div class="formula-block">
+$$
+p_{\max} = \sqrt{\left( \sqrt{\mu^2 - \left(\frac{2\pi n}{L}\right)^2} \mp b \right)^2 - M^2}
+$$
+</div>
+
+<p>
+Интеграл: $\int_0^{p_{\max}} F(p, n)\, dp$.
+</p>
+
+<h4>Случай «два корня» (особый, $|b| > M$ и $b < 0$)</h4>
+
+<p>
+При определённых условиях ($|b| > M$, $b < 0$, $F(0) < 0$) функция $F(p, n)$ может быть положительна на <strong>двух</strong> несвязных интервалах по $p$:
+</p>
+
+<div class="formula-block">
+$$
+F > 0 \quad \text{на} \quad [p_{\text{left}}, p_{\text{right}}]
+$$
+</div>
+
+<p>
+где:
+</p>
+
+<div class="formula-block">
+$$
+p_{\text{left}} = \sqrt{(|b| - S_n)^2 - M^2}, \qquad p_{\text{right}} = \sqrt{(|b| + S_n)^2 - M^2}
+$$
+</div>
+
+<p>
+и $S_n = \sqrt{\mu^2 - (2\pi n/L)^2}$.
+</p>
+
+<div class="warning-box">
+  <strong>Критический баг, который мы исправили:</strong> в оригинальном коде случай «два корня» обрабатывался неверно — интеграл брался от 0 до $p_{\text{right}}$, пропуская область $[0, p_{\text{left}}]$, где $F < 0$ (функция не определена). Это давало нефизичные результаты. Сейчас корректно интегрируется только на $[p_{\text{left}}, p_{\text{right}}]$.
+</div>
+
+<h3>5.4. Алгоритм в коде</h3>
+
+<pre><code>@jit(nopython=True)
+def _compute_Unp(M, b, L, mu, phi, N_h):
+    Nmax = n_max_plus(M, b, L, mu, phi)
+    if Nmax < 0: return 0.0
+    
+    total = 0.0
+    for n in range(Nmax + 1):
+        Sn = sqrt(mu^2 - (2*pi*n/L)^2)
+        F0 = Fpn_plus(0.0, n, M, b, L, phi, mu)
+        
+        # Проверка: два корня?
+        two_roots = False
+        if abs(b) > M and b < 0 and F0 < 0.0:
+            val_left = (abs(b) - Sn)^2 - M^2
+            val_right = (abs(b) + Sn)^2 - M^2
+            if val_left >= 0 and val_right >= 0:
+                two_roots = True
+                p_left = sqrt(val_left)
+                p_right = sqrt(val_right)
+        
+        if not two_roots:
+            # Один корень: от 0 до p_right
+            pr_sq = (Sn - b)^2 - M^2   # если b >= 0
+            p_left = 0.0
+            p_right = sqrt(pr_sq)
+        
+        # Интегрирование методом средних точек
+        integral = _integrate_mode_scalar(0, n, M, b, L, phi, mu, N_h, p_left, p_right)
+        total += (integral if n == 0 else 2.0 * integral)
+    
+    return total</code></pre>
+
+<h3>5.5. Определение n_max</h3>
+
+<p>
+Максимальное число мод определяется из условия $S_n^2 > 0$:
+</p>
+
+<div class="formula-block">
+$$
+n_{\max}^{(+)} = \left\lfloor \frac{L}{2\pi} \sqrt{\mu^2 - (M + b)^2} \right\rfloor
+$$
+</div>
+
+<p>
+(для «+» ветви; для «−» аналогично с $M - b$).
+</p>
+
+<h3>5.6. Сложность</h3>
+
+<table>
+  <tr><th>Операция</th><th>Сложность</th><th>Время (после JIT)</th></tr>
+  <tr><td>Цикл по n (1 корень)</td><td>O(n_max × N_h)</td><td>~0.3 мс</td></tr>
+  <tr><td>Цикл по n (2 корня)</td><td>O(n_max × N_h)</td><td>~0.5 мс</td></tr>
+  <tr><td>Unp + Unm (полный)</td><td>O(2 × n_max × N_h)</td><td>~0.8 мс</td></tr>
+  <tr><td>Omega_mu_L_phys (3 вызова)</td><td>O(6 × n_max × N_h)</td><td>~2.5 мс</td></tr>
+</table>
+
+
+<h2>6. Поиск минимума: differential evolution</h2>
+
+<h3>6.1. Постановка</h3>
+
+<p>
+Для фиксированных $(\mu, L)$ ищем:
+</p>
+
+<div class="formula-block">
+$$
+(M_{\min}, b_{\min}) = \arg\min_{M \in [0, M_{\max}],\; b \in [0, b_{\max}]} \Omega_{\text{ren}}(M, b)
+$$
+</div>
+
+<h3>6.2. Почему DE, а не Nelder-Mead</h3>
+
+<table>
+  <tr><th>Метод</th><th>Плюсы</th><th>Минусы</th></tr>
+  <tr>
+    <td>Nelder-Mead</td>
+    <td>Быстрый, локальный</td>
+    <td><strong>Пропускает узкие минимумы</strong> шириной ~0.2–0.4</td>
+  </tr>
+  <tr>
+    <td>DE (differential evolution)</td>
+    <td>Глобальный, находит узкие ямы</td>
+    <td>Много вызовов функции (~75)</td>
+  </tr>
+</table>
+
+<div class="highlight-box">
+  <strong>Ключевое открытие:</strong> при $g = -1$ минимум по $b$ имеет ширину ~0.2–0.4 и глубину $\Delta\Omega \sim 10^{-3}$. Nelder-Mead с начальной симплекс-точкой $b = 0$ <strong>никогда</strong> не находит этот минимум. DE с popsize=5 и maxiter=15 находит корректно.
+</div>
+
+<h3>6.3. Параметры DE</h3>
+
+<ul>
+  <li><span class="param-name">bounds</span>: $M \in [0, 10]$, $b \in [0, 10]$</li>
+  <li><span class="param-name">maxiter</span>: 15 (итераций)</li>
+  <li><span class="param-name">popsize</span>: 5 (размер популяции = 5 × dim = 25 точек)</li>
+  <li><span class="param-name">polish</span>: False (отключаем Nelder-Mead на финальной стадии — он портит результат)</li>
+  <li><span class="param-name">tol</span>: 1e-6</li>
+</ul>
+
+<p>
+<strong>Число вызовов Omega_ren:</strong> до 15 × 25 = 375, но обычно сходится раньше — ~50–75 вызовов.
+</p>
+
+<h3>6.4. Канонизация результата</h3>
+
+<p>
+После DE:
+</p>
+
+<pre><code>M_canon_tol = 0.05
+if M_opt < M_canon_tol:
+    M_opt = 0.0
+    b_opt = 0.0   # при M=0 все b эквивалентны
+elif b_opt < 1e-4:
+    b_opt = 0.0</code></pre>
+
+
+<h2>7. Адаптивная сетка (Adaptive Phase Diagram)</h2>
+
+<h3>7.1. Идея</h3>
+
+<p>
+Вместо равномерной сетки (где много точек тратится на «гладкие» области), используем <strong>квадродерево</strong>:
+</p>
+
+<ul>
+  <li>Где $\Omega$ меняется плавно — грубая сетка</li>
+  <li>Где $\Omega$ скачет (граница фаз) — автоматическое измельчение</li>
+</ul>
+
+<h3>7.2. Алгоритм</h3>
+
+<ol>
+  <li><strong>Базовая сетка</strong>: равномерная сетка $N_\mu \times N_L$</li>
+  <li>Для каждой ячейки $(\mu_1, \mu_2) \times (L_1, L_2)$:
+    <ul>
+      <li>Считаем $M$ и $b$ в 5 точках (углы + центр)</li>
+      <li>Вычисляем <strong>variation</strong>: $\text{var}_M = \max M - \min M$, $\text{var}_b = \max b - \min b$</li>
+    </ul>
+  </li>
+  <li>Если $\text{var}_M > \varepsilon_M$ или $\text{var}_b > \varepsilon_b$:
+    <ul>
+      <li>Разбиваем ячейку на 4 под-ячейки</li>
+      <li>Рекурсивно применяем шаг 2 (до max_depth)</li>
+    </ul>
+  </li>
+  <li>Иначе: записываем центр ячейки как финальную точку</li>
+</ol>
+
+<h3>7.3. Параметры</h3>
+
+<table>
+  <tr><th>Параметр</th><th>Значение</th><th>Смысл</th></tr>
+  <tr><td>init_mu_div</td><td>10 (или 50/100)</td><td>Базовое разбиение по μ</td></tr>
+  <tr><td>init_L_div</td><td>10 (или 50/100)</td><td>Базовое разбиение по L</td></tr>
+  <tr><td>max_depth</td><td>2</td><td>Макс. глубина рекурсии</td></tr>
+  <tr><td>eps_M</td><td>0.3</td><td>Порог variation по M</td></tr>
+  <tr><td>eps_b</td><td>0.2</td><td>Порог variation по b</td></tr>
+</table>
+
+<h3>7.4. Сколько точек получается</h3>
+
+<table>
+  <tr><th>База</th><th>max_depth</th><th>~Точек</th><th>~Время (1 ядро)</th></tr>
+  <tr><td>10×10</td><td>2</td><td>~500</td><td>~10 мин</td></tr>
+  <tr><td>50×50</td><td>2</td><td>~5000</td><td>~2 часа</td></tr>
+  <tr><td>100×100</td><td>2</td><td>~20000</td><td>~8 часов</td></tr>
+</table>
+
+
+<h2>8. Что можно ускорить?</h2>
+
+<p>
+Вот таблица bottleneck'ов с потенциальным выигрышем:
+</p>
+
+<table>
+  <tr><th>Операция</th><th>Доля времени</th><th>Потенциал ускорения</th></tr>
+  <tr><td>DE (вызовы Omega_ren)</td><td>~90%</td><td>Умный DE (-50%), grid-init (-30%)</td></tr>
+  <tr><td>Omega_mu_L (интегралы)</td><td>~70% внутри Omega_ren</td><td>Numba <code>prange</code> (×2–4)</td></tr>
+  <tr><td>dU + Omega_L (кэш)</td><td>~5%</td><td>LRU уже оптимально</td></tr>
+  <tr><td>Параллелизм по (μ, L)</td><td>—</td><td>Линейный до числа ядер</td></tr>
+</table>
+
+<div class="highlight-box">
+  <strong>Гипотеза для исследования:</strong>
+  <br>
+  Если заменить DE на двухэтапный поиск:
+  <ol>
+    <li>Грубый grid 20×20 по $(M, b)$ → находим «квадрат» с минимумом</li>
+    <li>DE с <code>bounds=квадрат±0.5</code> и <code>maxiter=5</code> → уточнение</li>
+  </ol>
+  Это сократит число вызовов с ~75 до ~30, дая <strong>2.5× ускорение</strong>.
+</div>
+
+
+<h2>9. Ссылки</h2>
+
+<ul>
+  <li><span class="file-ref">functions/Omega_mu_L.py</span> — реализация μL-интегралов</li>
+  <li><span class="file-ref">functions/Omega_L.py</span> — размерные моды</li>
+  <li><span class="file-ref">functions/dU.py</span> — UV-контрчлен</li>
+  <li><span class="file-ref">notebooks/31_parallel_grid.py</span> — параллельная равномерная сетка</li>
+  <li><a href="asymptotics.html">Асимптотика при μ → ∞</a></li>
+</ul>
+
+<footer>
+  <p>NJL₃ Model — Internal Algorithm Documentation</p>
+  <p><a href="https://github.com/alexeykozhakin/NJL3Model_b">github.com/alexeykozhakin/NJL3Model_b</a></p>
+</footer>
+
+</body>
+</html>

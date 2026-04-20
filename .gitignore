@@ -175,3 +175,8 @@ cython_debug/
 # Generated outputs
 notebooks/output/
 .DS_Store
+
+# Generated outputs (root)
+output/
+*.npz
+*.png
