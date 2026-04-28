@@ -217,6 +217,82 @@ const NJL = (function () {
     }
 
     // -------------------------------------------------------------------------
+    // Аналитические формулы для ренормализационных членов при M=0
+    // (см. theory.md раздел 9)
+    // -------------------------------------------------------------------------
+
+    // Omega_muL(mu, L, 0, 0): полностью аналитически, без квадратуры
+    function omegaMuL_00_analytical(mu, L) {
+        if (mu <= 0) return 0.0;
+        const n_max = Math.floor(L * mu / (2 * Math.PI));
+        // result = -(1/(π*L)) * [mu² + 2*Σ_{n=1}^{n_max} (mu*Sn - kn²*ln((mu+Sn)/kn))]
+        let s = mu * mu;
+        for (let n = 1; n <= n_max; n++) {
+            const kn = 2 * Math.PI * n / L;
+            const Sn = Math.sqrt(mu * mu - kn * kn);
+            s += 2.0 * (mu * Sn - kn * kn * Math.log((mu + Sn) / kn));
+        }
+        return -s / (Math.PI * L);
+    }
+
+    // Omega_muL(mu, L, b, 0) при b >= 0: аналитическая сумма по модам
+    function omegaMuL_b0_analytical(mu, L, b) {
+        if (mu <= 0) return 0.0;
+        if (b === 0) return omegaMuL_00_analytical(mu, L);
+        const TWO_PI = 2 * Math.PI;
+
+        // Плюс-ветвь: n_max_plus = floor(L/(2π)*sqrt(mu²-b²)) при mu>b, иначе нет вклада
+        let Unp = 0.0;
+        if (mu > b) {
+            const n_max_p = Math.floor(L / TWO_PI * Math.sqrt(mu * mu - b * b));
+            for (let n = 0; n <= n_max_p; n++) {
+                const kn = TWO_PI * n / L;
+                const Sn = Math.sqrt(mu * mu - kn * kn);
+                const mu_b = Math.sqrt(b * b + kn * kn);
+                let I;
+                if (n === 0) {
+                    I = (mu - b) * (mu - b) / (4 * Math.PI);
+                } else {
+                    I = (mu * Sn / 2 - mu * b + b * mu_b / 2
+                        + kn * kn / 2 * Math.log((b + mu_b) / (Sn + mu))) / (2 * Math.PI);
+                }
+                Unp += (n === 0 ? 1.0 : 2.0) * I;
+            }
+        }
+
+        // Минус-ветвь: n_max_minus = floor(L*mu/(2π)) при b>0, M=0
+        let Unm = 0.0;
+        const n_max_m = Math.floor(L * mu / TWO_PI);
+        for (let n = 0; n <= n_max_m; n++) {
+            const kn = TWO_PI * n / L;
+            const Sn_sq = mu * mu - kn * kn;
+            if (Sn_sq < 0) continue;
+            const Sn = Math.sqrt(Sn_sq);
+            const mu_b = Math.sqrt(b * b + kn * kn);
+            let I;
+            if (Sn >= b) {
+                // Один корень: интегрирование по [0, b+Sn]
+                if (n === 0) {
+                    I = (mu * mu / 2 + mu * b - b * b / 2) / (2 * Math.PI);
+                } else {
+                    I = (mu * Sn / 2 + mu * b - b * mu_b / 2
+                        + kn * kn / 2 * Math.log((mu_b - b) / (Sn + mu))) / (2 * Math.PI);
+                }
+            } else {
+                // Два корня: интегрирование по [b-Sn, b+Sn]
+                if (n === 0) {
+                    I = mu * mu / (2 * Math.PI);
+                } else {
+                    I = (mu * Sn - kn * kn * Math.log((Sn + mu) / kn)) / (2 * Math.PI);
+                }
+            }
+            Unm += (n === 0 ? 1.0 : 2.0) * I;
+        }
+
+        return -(2.0 / L) * (Unp + Unm);
+    }
+
+    // -------------------------------------------------------------------------
     // Основной расчёт сетки
     // -------------------------------------------------------------------------
     function computeGrid(params, onProgress) {
@@ -228,7 +304,7 @@ const NJL = (function () {
 
         // Предвычисление универсальных констант
         const omegaL_00 = omegaL_scalar(L, 0.0, 0.0, N_h_p1, N_h_p2);
-        const omegaMuL_00 = omegaMuL_scalar(mu, L, 0.0, 0.0, 0, N_h_mu);
+        const omegaMuL_00 = omegaMuL_00_analytical(mu, L);
 
         const total   = new Float64Array(N_b * N_M);
         const omegaMuL= new Float64Array(N_b * N_M);
@@ -238,7 +314,7 @@ const NJL = (function () {
         for (let i = 0; i < N_b; i++) {
             const b = b_vals[i];
             const omegaL_b0 = omegaL_scalar(L, b, 0.0, N_h_p1, N_h_p2);
-            const omegaMuL_b0 = omegaMuL_scalar(mu, L, b, 0.0, 0, N_h_mu);
+            const omegaMuL_b0 = omegaMuL_b0_analytical(mu, L, b);
 
             for (let j = 0; j < N_M; j++) {
                 const M = M_vals[j];

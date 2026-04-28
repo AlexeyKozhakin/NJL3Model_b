@@ -332,6 +332,90 @@ $ общее число мод $N_{max}$ само по себе мало, поэ
 
 ---
 
+## 9. Упрощения при $M = 0$
+
+Вычисление ренормализованного потенциала требует трёх уровней каждой функции:
+
+$$X_{\text{phys}}(M, b) = X(M, b) - X(0, b) + X(0, 0)$$
+
+Ниже показано, что при $M = 0$ слагаемые $X(0, b)$ и $X(0, 0)$ значительно упрощаются.
+
+---
+
+### 9.1. Вакуумный вклад $\Delta U$
+
+**Утверждение:** $\Delta U(0, b) = 0$ для любого $b$, в том числе $\Delta U(0, 0) = 0$.
+
+**Доказательство.** При $M = 0$ подынтегральное выражение (4.1) обращается в нуль тождественно:
+
+- $\text{term}_1 = M^2/p = 0$
+- $\text{term}_4 = \sqrt{b^2 + p^2 + 2b\sqrt{p^2\cos^2\varphi}} = \sqrt{b^2 + p^2 + 2bp\cos\varphi} = \text{term}_2$
+- $\text{term}_5 = \sqrt{b^2 + p^2 - 2bp\cos\varphi} = \text{term}_3$
+
+Поэтому интегранд $\propto (-0 - \text{term}_2 - \text{term}_3 + \text{term}_2 + \text{term}_3) = 0$.
+
+**Следствие:** ренормализация для $\Delta U$ не требуется:
+
+$$\Delta U_{\text{phys}}(M, b) = \Delta U(M, b) - \underbrace{\Delta U(0, b)}_{=0} + \underbrace{\Delta U(0, 0)}_{=0} = \Delta U(M, b)$$
+
+---
+
+### 9.2. Термический вклад $\Omega_{\mu L}(0, 0)$ — аналитическая формула
+
+При $b = 0$, $M = 0$: $E_1 = p$, $F^+ = F^- = F$, поэтому $U_{np} = U_{nm} = U$.
+
+Для каждой моды $n$ интеграл по $p$ берётся точно:
+
+$$I_n = \int_0^{S_n} F_n(p)\,dp = \int_0^{S_n} \frac{\mu - \sqrt{p^2 + k_n^2}}{2\pi}\,dp$$
+
+Используя формулу $\int_0^a \sqrt{p^2+k^2}\,dp = \tfrac{a}{2}\sqrt{a^2+k^2} + \tfrac{k^2}{2}\ln\!\left(\tfrac{a+\sqrt{a^2+k^2}}{k}\right)$ и подставляя $a = S_n$, $\sqrt{S_n^2+k_n^2} = \mu$:
+
+$$I_n = \frac{1}{4\pi}\bigl[\mu S_n - k_n^2 \ln\tfrac{\mu + S_n}{k_n}\bigr], \qquad n \geq 1$$
+
+$$I_0 = \int_0^{\mu} \frac{\mu - p}{2\pi}\,dp = \frac{\mu^2}{4\pi}$$
+
+где $k_n = 2\pi n/L$, $S_n = \sqrt{\mu^2 - k_n^2}$, $n_{\max} = \lfloor L\mu/2\pi \rfloor$.
+
+**Итоговая формула** (без численного интегрирования):
+
+$$\boxed{\Omega_{\mu L}(\mu, L, 0, 0) = -\frac{1}{\pi L}\left[\mu^2 + 2\sum_{n=1}^{n_{\max}}\Bigl(\mu S_n - k_n^2 \ln\tfrac{\mu + S_n}{k_n}\Bigr)\right]}$$
+
+---
+
+### 9.3. Термический вклад $\Omega_{\mu L}(b, 0)$ при $b \geq 0$ — аналитическая сумма по модам
+
+При $M = 0$: $E_1 = p$, $F^\pm(p, n) = \bigl(\mu - \sqrt{(p \pm b)^2 + k_n^2}\bigr)/(2\pi)$.
+
+Интеграл по $p$ для каждой моды берётся заменой $q = p \pm b$.
+
+**Плюс-ветвь** ($n_{\max}^+ = \lfloor \frac{L}{2\pi}\sqrt{\mu^2 - b^2} \rfloor$ при $\mu > b$, иначе $-1$):
+
+$$I_n^+ = \frac{1}{2\pi}\left\{\frac{\mu S_n}{2} - \mu b + \frac{b\,\mu_b}{2} + \frac{k_n^2}{2}\ln\frac{b + \mu_b}{S_n + \mu}\right\}$$
+
+$$I_0^+ = \frac{(\mu - b)^2}{4\pi}$$
+
+где $\mu_b = \sqrt{b^2 + k_n^2}$.
+
+**Минус-ветвь** ($n_{\max}^- = \lfloor L\mu/2\pi \rfloor$ при $b > 0$, $M = 0$):
+
+Для мод с $S_n \geq b$ (один корень, $p \in [0,\, b + S_n]$):
+
+$$I_n^- = \frac{1}{2\pi}\left\{\frac{\mu S_n}{2} + \mu b - \frac{b\,\mu_b}{2} + \frac{k_n^2}{2}\ln\frac{\mu_b - b}{S_n + \mu}\right\}, \qquad I_0^- = \frac{\mu^2/2 + \mu b - b^2/2}{2\pi}$$
+
+Для мод с $S_n < b$ (два корня, $p \in [b - S_n,\, b + S_n]$):
+
+$$I_n^- = \frac{1}{2\pi}\left\{\mu S_n - k_n^2 \ln\frac{S_n + \mu}{k_n}\right\}, \qquad I_0^- = \frac{\mu^2}{2\pi}$$
+
+**Итоговая формула:**
+
+$$\Omega_{\mu L}(\mu, L, b, 0) = -\frac{2}{L}\Bigl(U_{np} + U_{nm}\Bigr)$$
+
+$$U_{np} = I_0^+ + 2\sum_{n=1}^{n_{\max}^+} I_n^+, \qquad U_{nm} = I_0^- + 2\sum_{n=1}^{n_{\max}^-} I_n^-$$
+
+Никакой квадратуры — только конечная сумма по $n$ (при наших параметрах $n_{\max} \leq 4$).
+
+---
+
 ## 8. Открытые вопросы и известные проблемы
 
 ### Уже найдено и частично исправлено
