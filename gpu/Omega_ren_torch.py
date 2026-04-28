@@ -164,6 +164,7 @@ def compute(
     chunk_size: int = 50,
     device: torch.device | None = None,
     dtype: torch.dtype = torch.float64,
+    show_progress: bool = False,
 ) -> torch.Tensor:
     """
     Полный расчёт Omega_ren(mu, L, b, M) с нуля.
@@ -188,7 +189,7 @@ def compute(
     OmegamuL_bM = _omega_muL(
         mu_grid, L_grid, b_grid, M_grid,
         N_p=N_p, n_modes_max=n_modes_max, chunk_size=chunk_size,
-        device=device, dtype=dtype,
+        device=device, dtype=dtype, show_progress=show_progress,
     )
 
     # OmegamuL(mu, L, b, 0) и (mu, L, 0, 0) — аналитически

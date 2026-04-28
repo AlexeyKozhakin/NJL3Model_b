@@ -42,6 +42,7 @@ def compute(
     chunk_size: int = 50,
     device: torch.device | None = None,
     dtype: torch.dtype = torch.float64,
+    show_progress: bool = False,
 ) -> torch.Tensor:
     """
     Вычисляет Omega_muL(mu, L, b, M) для полной сетки.
@@ -75,7 +76,16 @@ def compute(
 
     L_t = L_grid.to(device=device, dtype=dtype)
 
-    for i_mu in range(N_MU):
+    if show_progress:
+        try:
+            from tqdm.auto import tqdm
+        except ImportError:
+            from tqdm import tqdm
+        mu_iter = tqdm(range(N_MU), desc='Omega_muL  mu', unit='μ')
+    else:
+        mu_iter = range(N_MU)
+
+    for i_mu in mu_iter:
         mu = mu_grid[i_mu].item()
 
         if mu <= 0.0:
