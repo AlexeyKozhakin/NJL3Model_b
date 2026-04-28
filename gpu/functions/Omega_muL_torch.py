@@ -76,17 +76,11 @@ def compute(
 
     L_t = L_grid.to(device=device, dtype=dtype)
 
-    if show_progress:
-        try:
-            from tqdm.auto import tqdm
-        except ImportError:
-            from tqdm import tqdm
-        mu_iter = tqdm(range(N_MU), desc='Omega_muL  mu', unit='μ')
-    else:
-        mu_iter = range(N_MU)
-
-    for i_mu in mu_iter:
+    for i_mu in range(N_MU):
         mu = mu_grid[i_mu].item()
+
+        if show_progress:
+            print(f'\r  Omega_muL: {i_mu+1}/{N_MU}  μ={mu:.3f}', end='', flush=True)
 
         if mu <= 0.0:
             continue   # Omega_muL = 0 при mu=0
@@ -170,5 +164,8 @@ def compute(
                 # Omega_muL = -(2/L) * acc
                 # L: (N_L,) → (N_L, 1, 1)
                 result[i_mu, :, i_b0:i_b1, i_M0:i_M1] = -(2.0 / L_t.view(N_L, 1, 1)) * acc
+
+    if show_progress:
+        print(f'\r  Omega_muL: {N_MU}/{N_MU}  готово{" " * 20}', flush=True)
 
     return result
