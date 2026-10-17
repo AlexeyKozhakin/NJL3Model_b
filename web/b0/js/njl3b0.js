@@ -9,7 +9,7 @@
 //
 // Гарантированный поиск корней: на [0, mu] G = 1/g + A(M) + B(M), A возрастает, B убывает,
 // откуда вилка 1/g + A(p) + B(q) ≤ G ≤ 1/g + A(q) + B(p); на [mu, ∞) G возрастает.
-// Вывод: publication/notes/2026-10-17_root-isolation-b0.md. Эталон — Python-пакет njl3.b0.
+// Эталон — Python-пакет njl3.b0.
 
 const PI = Math.PI;
 
