@@ -138,7 +138,7 @@ function runPoint(mu, L) {
       <tr><th>Ω* − Ω(0)</th><td>${r.omega_star.toExponential(6)}</td></tr>
       <tr><th>Кандидат b = 0</th><td>${r.b0.phase}: M = ${r.b0.M.toPrecision(8)}, ΔΩ = ${r.b0.omega.toExponential(4)}</td></tr>`;
     $('channels').innerHTML = '<tr><th>n</th><th>S<sub>n</sub></th><th>c<sub>n</sub></th><th>A<sub>n</sub></th><th>ln M*</th><th>b* − S<sub>n</sub></th><th>Ω*</th></tr>' +
-      r.channels.map((c) => `<tr class="${r.phase[0] === 'B' && Math.abs(c.b - r.b_star) < 1e-9 && Math.abs(c.omega - r.omega_star) < 1e-15 ? 'win' : ''}"><td>${c.n}</td><td>${c.S.toFixed(5)}</td><td>${c.c.toFixed(5)}</td>
+      r.channels.map((c) => `<tr class="${r.phase === 'B' + c.n ? 'win' : ''}"><td>${c.n}</td><td>${c.S.toFixed(5)}</td><td>${c.c.toFixed(5)}</td>
         <td>${c.A.toFixed(5)}</td><td>${c.lnM.toFixed(3)}${c.asym ? '*' : ''}</td><td>${(c.b - c.S).toExponential(2)}</td><td>${c.omega.toExponential(3)}</td></tr>`).join('');
     drawOmegaMap(r);
     drawChannel(r);
