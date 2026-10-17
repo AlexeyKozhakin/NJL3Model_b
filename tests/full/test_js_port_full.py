@@ -33,10 +33,14 @@ def _golden(seed=3):
             a = channel_asymptotics(S, C, mu, L, G_)
             ch.append(dict(mu=mu, L=L, S=S, C=C, A=a['A'], lnM=a['lnM']))
     pts = []
-    for mu, L in [(1.0, 1.0), (2.8, 0.5), (3.0, 1.0), (3.5, 1.0), (4.0, 2.0), (3.8, 4.0), (6.0, 1.0),
-                  (5.0, 3.0), (2.0, 9.0), (4.5, 1.5), (3.2, 2.5)]:
-        r = find_minimum(mu, L, G_)
-        pts.append(dict(mu=mu, L=L, phase=r.phase, lnM=r.ln_M_star, b=r.b_star, omega=r.omega_star))
+    fin = lambda x: float(x) if math.isfinite(x) else None          # JSON без ±Infinity/NaN
+    for mu, L, T in [(1.0, 1.0, 0), (2.8, 0.5, 0), (3.0, 1.0, 0), (3.5, 1.0, 0), (4.0, 2.0, 0), (3.8, 4.0, 0),
+                     (6.0, 1.0, 0), (5.0, 3.0, 0), (2.0, 9.0, 0), (4.5, 1.5, 0), (3.2, 2.5, 0),
+                     (6.647, 5.134, 0),                                # B2 глубже B1 (выбор каналов без запаса)
+                     (6.647, 5.134, 1e-3), (5.0, 3.0, 1e-3), (5.351, 2.785, 1e-3), (6.058, 3.456, 1e-3),
+                     (3.0, 1.0, 1e-3), (6.0, 6.0, 1e-3), (4.291, 0.939, 1e-2)]:
+        r = find_minimum(mu, L, G_, T=T)
+        pts.append(dict(mu=mu, L=L, T=T, phase=r.phase, lnM=fin(r.ln_M_star), b=fin(r.b_star), omega=r.omega_star))
     return dict(g=G_, s=s, omega=om, channels=ch, points=pts)
 
 

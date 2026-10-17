@@ -1,5 +1,5 @@
 // Интерфейс полной задачи: карты M*, b* (посчитаны заранее), расчёт точки в фоновом потоке.
-import { thresholds } from './njl3full.js';
+import { thresholds, channelMMin } from './njl3full.js';
 
 const G = -1.0;
 const $ = (id) => document.getElementById(id);
@@ -61,6 +61,10 @@ function applyTheme() {
 // Карты
 // ---------------------------------------------------------------------------
 let MAPS = null;
+const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+const pow10 = (k) => (k === 0 ? '1' : '10' + String(k).split('').map((c) => SUP[c]).join(''));
+const tempT = () => (MAPS && MAPS.T) || 0;
+const fmtT = (T) => (T > 0 ? T.toExponential(0).replace(/e([+-]\d+)/, (_, e) => ' · 10' + String(+e).split('').map((c) => SUP[c]).join('')).replace(/^1 · /, '') : '0');
 const fmtM = (lnM) => (!Number.isFinite(lnM) ? '0' : lnM > -700 ? Math.exp(lnM).toPrecision(6) : `e^${lnM.toFixed(1)}`);
 
 function boundaries() {
@@ -82,6 +86,15 @@ function drawMaps() {
   const { L, mu, lnM, b, phase, omega, asym } = MAPS;
   const T = (A) => mu.map((_, j) => L.map((_, i) => A[i][j]));       // [i=L][j=mu] -> z[mu][L]
   const logM = T(lnM.map((r) => r.map((v) => (v === null ? null : Math.max(v / LN10, -12)))));
+  // шкала M*: от наименьшей ненулевой щели (при пороге T она ~2T) до 10
+  const lmin = Math.min(...logM.flat().filter((v) => v !== null));
+  const zmin = Math.max(-8, Math.min(-1, Math.floor(lmin)));
+  const step = -zmin > 4 ? 2 : 1;
+  const ticks = Array.from({ length: Math.floor(-zmin / step) + 1 }, (_, k) => zmin + k * step);
+  // M = 0 (щель не переживает T): отдельный нейтральный слой под картой
+  const zero = T(phase.map((r) => r.map((p) => (p === 'T' ? 1 : null))));
+  const zeroLayer = { type: 'heatmap', x: L, y: mu, z: zero, customdata: null, colorscale: [[0, t.muted], [1, t.muted]], opacity: 0.35,
+                      showscale: false, zsmooth: false, hovertemplate: 'L = %{x:.3f}<br>μ = %{y:.3f}<br>M = 0 (щель не переживает T)<extra></extra>' };
   const cd = T(phase.map((r, i) => r.map((p, j) =>
     `${p}<br>M* = ${fmtM(lnM[i][j])}${asym[i][j] ? ' (асимпт.)' : ''}<br>b* = ${b[i][j] === null ? '—' : b[i][j].toFixed(5)}<br>Ω* = ${omega[i][j] === null ? '—' : omega[i][j].toExponential(3)}`)));
   const hov = 'L = %{x:.3f}<br>μ = %{y:.3f}<br>фаза %{customdata}<extra></extra>';
@@ -98,10 +111,13 @@ function drawMaps() {
               marker: { symbol: 'circle-open', size: 13, color: t.ink, line: { width: 2.5, color: t.ink } } });
   const lay = (title) => baseLayout(t, { xaxis: { title: { text: 'L' } }, yaxis: { title: { text: 'μ' } }, margin: { l: 52, r: 8, t: 6, b: 44 } });
   Plotly.react('map-M', [
-    { type: 'heatmap', x: L, y: mu, z: logM, customdata: cd, hovertemplate: hov, colorscale: t.seq, zmin: -8, zmax: 1, zsmooth: false,
-      colorbar: { title: { text: 'M*' }, thickness: 12, outlinewidth: 0, tickvals: [-8, -6, -4, -2, 0], ticktext: ['≤10⁻⁸', '10⁻⁶', '10⁻⁴', '10⁻²', '1'], tickfont: { color: t.muted } } },
+    zeroLayer,
+    { type: 'heatmap', x: L, y: mu, z: logM, customdata: cd, hovertemplate: hov, colorscale: t.seq, zmin, zmax: 1, zsmooth: false,
+      colorbar: { title: { text: 'M*' }, thickness: 12, outlinewidth: 0, tickvals: ticks,
+                  ticktext: ticks.map((k, i) => (i === 0 && zmin === -8 ? '≤' : '') + pow10(k)), tickfont: { color: t.muted } } },
     ...over], lay(), CFG);
   Plotly.react('map-b', [
+    zeroLayer,
     { type: 'heatmap', x: L, y: mu, z: T(b), customdata: cd, hovertemplate: hov, colorscale: t.seq2, zmin: 0, zsmooth: false,
       colorbar: { title: { text: 'b*' }, thickness: 12, outlinewidth: 0, tickfont: { color: t.muted } } },
     ...over], lay(), CFG);
@@ -128,18 +144,19 @@ function runPoint(mu, L) {
   drawMaps();
   $("status").textContent = `Расчёт точки μ = ${mu}, L = ${L}: глобальный минимум по всем каналам, несколько секунд…`;
   const t0 = performance.now();
-  ask({ type: 'point', mu, L, g: G }, ({ result: r }) => {
+  ask({ type: 'point', mu, L, g: G, T: tempT() }, ({ result: r }) => {
     lastPoint = r;
     $('status').textContent = `Точка μ = ${mu}, L = ${L}: ${((performance.now() - t0) / 1000).toFixed(1)} с.`;
     $('point-table').innerHTML = `
-      <tr><th>Фаза</th><td><span class="phase-badge">${r.phase}</span>${r.asymptotic ? ' (щель из асимптотики)' : ''}</td></tr>
+      <tr><th>Фаза</th><td><span class="phase-badge">${r.phase}</span>${r.asymptotic ? ' (щель из асимптотики)' : ''}${r.phase === 'T' ? ' — M = 0: ни одна щель не переживает T' : ''}</td></tr>
+      <tr><th>Порог T</th><td>${fmtT(r.T || 0)}</td></tr>
       <tr><th>M*</th><td>${fmtM(r.ln_M_star)} (ln M* = ${Number.isFinite(r.ln_M_star) ? r.ln_M_star.toFixed(5) : '−∞'})</td></tr>
       <tr><th>b*</th><td>${Number.isFinite(r.b_star) ? r.b_star.toFixed(8) : '—'}</td></tr>
       <tr><th>Ω* − Ω(0)</th><td>${r.omega_star.toExponential(6)}</td></tr>
       <tr><th>Кандидат b = 0</th><td>${r.b0.phase}: M = ${r.b0.M.toPrecision(8)}, ΔΩ = ${r.b0.omega.toExponential(4)}</td></tr>`;
     $('channels').innerHTML = '<tr><th>n</th><th>S<sub>n</sub></th><th>c<sub>n</sub></th><th>A<sub>n</sub></th><th>ln M*</th><th>b* − S<sub>n</sub></th><th>Ω*</th></tr>' +
       r.channels.map((c) => `<tr class="${r.phase === 'B' + c.n ? 'win' : ''}"><td>${c.n}</td><td>${c.S.toFixed(5)}</td><td>${c.c.toFixed(5)}</td>
-        <td>${c.A.toFixed(5)}</td><td>${c.lnM.toFixed(3)}${c.asym ? '*' : ''}</td><td>${(c.b - c.S).toExponential(2)}</td><td>${c.omega.toExponential(3)}</td></tr>`).join('');
+        <td>${c.A.toFixed(5)}</td><td>${c.M > 0 ? c.lnM.toFixed(3) + (c.asym ? '*' : '') : '— (< порога)'}</td><td>${c.M > 0 ? (c.b - c.S).toExponential(2) : '—'}</td><td>${c.M > 0 ? c.omega.toExponential(3) : '0'}</td></tr>`).join('');
     drawOmegaMap(r);
     drawChannel(r);
   });
@@ -176,7 +193,9 @@ function drawOmegaMap(r) {
 function drawChannel(r) {
   const t = tokens();
   let ch = r.channels.find((c) => r.phase === 'B' + c.n);
-  if (!ch) ch = r.channels.reduce((a, c) => (c.omega < a.omega ? c : a), r.channels[0]);
+  // нет выигравшего канала (фаза T и др.): канал с наибольшей асимптотической щелью — ближайший к выживанию
+  const lnMasy = (c) => -c.A / c.c - 0.5;
+  if (!ch) ch = r.channels.reduce((a, c) => (lnMasy(c) > lnMasy(a) ? c : a), r.channels[0]);
   if (!ch) return;
   $('chan-title').innerHTML = `[Ω(M, S<sub>${ch.n}</sub>) − Ω(0)]/M² у порога n = ${ch.n}`;
   const lnM = linspace(Math.log(1e-8), Math.log(2), 120);
@@ -193,8 +212,14 @@ function drawChannel(r) {
     ], baseLayout(t, { xaxis: { title: { text: 'M' }, type: 'log', exponentformat: 'power' },
         yaxis: { zeroline: true, zerolinecolor: t.axis, zerolinewidth: 1.5 },
         legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { color: t.ink2 } },
-        shapes: Number.isFinite(asy.lnM) && asy.lnM > Math.log(1e-8) ? [{ type: 'line', yref: 'paper', y0: 0, y1: 1,
-          x0: Math.exp(asy.lnM), x1: Math.exp(asy.lnM), line: { color: t.muted, width: 1, dash: 'dot' } }] : [],
+        shapes: [
+          ...(Number.isFinite(asy.lnM) && asy.lnM > Math.log(1e-8) ? [{ type: 'line', yref: 'paper', y0: 0, y1: 1,
+            x0: Math.exp(asy.lnM), x1: Math.exp(asy.lnM), line: { color: t.muted, width: 1, dash: 'dot' } }] : []),
+          // порог по температуре: щели левее не переживают T
+          ...(tempT() > 0 ? [{ type: 'rect', yref: 'paper', y0: 0, y1: 1, x0: 1e-8, x1: channelMMin(ch.S, r.mu, tempT()),
+            fillcolor: t.muted, opacity: 0.15, line: { width: 0 } }] : [])],
+        annotations: tempT() > 0 ? [{ x: Math.log10(channelMMin(ch.S, r.mu, tempT())), y: 1, yref: 'paper', xanchor: 'right', yanchor: 'top',
+          text: 'M < M<sub>min</sub>(T) ', showarrow: false, font: { color: t.muted, size: 11 } }] : [],
         margin: { l: 52, r: 6, t: 26, b: 40 } }), CFG);
   });
 }
@@ -205,7 +230,8 @@ async function main() {
   $('theme').value = state.theme; $('show-bnd').checked = state.bnd; $('show-asym').checked = state.asym;
   try {
     MAPS = await (await fetch('data/maps.json')).json();
-    $('status').textContent = `Карты: ${MAPS.mu.length} × ${MAPS.L.length} точек (μ ∈ [${MAPS.mu[0]}, ${MAPS.mu.at(-1)}], L ∈ [${MAPS.L[0]}, ${MAPS.L.at(-1)}]).`;
+    $('status').textContent = `Карты: ${MAPS.mu.length} × ${MAPS.L.length} точек (μ ∈ [${MAPS.mu[0]}, ${MAPS.mu.at(-1)}], L ∈ [${MAPS.L[0]}, ${MAPS.L.at(-1)}]), порог T = ${fmtT(tempT())}.`;
+    $('temp-T').textContent = fmtT(tempT());
   } catch {
     $('status').textContent = 'Не удалось загрузить карты (data/maps.json).';
   }

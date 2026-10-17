@@ -15,7 +15,7 @@ self.onmessage = async ({ data }) => {
 
 function handle(type, job, data) {
   if (type === 'point') {
-    self.postMessage({ type, job, result: findMinimum(data.mu, data.L, data.g) });
+    self.postMessage({ type, job, result: findMinimum(data.mu, data.L, data.g, data.T || 0) });
   } else if (type === 'omega-map') {
     const { mu, L, g, M, b } = data;
     for (let i = 0; i < b.length; i++) {

@@ -203,38 +203,74 @@ const LNM = Array.from({ length: 40 }, (_, i) => Math.log(M_ASYMP) + (Math.log(4
 const TG = [...Array.from({ length: 13 }, (_, i) => -4 + 3 * i / 12), ...Array.from({ length: 19 }, (_, i) => -0.9 + 1.8 * i / 18),
             ...Array.from({ length: 5 }, (_, i) => 1 + 2 * i / 4)];
 
-export function channelMinimum(S, C, mu, L, g) {
-  const asy = channelAsymptotics(S, C, mu, L, g);
+// Порог по температуре (как njl3.full.minimize): щель канала n выживает при T < TC_RATIO·(S_n/mu)·M*_n
+export const TC_RATIO = Math.exp(0.5772156649015329) / PI, PRUNE_FACTOR = 0.8;
+export const channelMMin = (S, mu, T) => (T > 0 ? T / (TC_RATIO * S / mu) : 0);
+const LNM_LO = Math.log(M_ASYMP), LNM_HI = Math.log(6), LN45 = Math.log(4.5);
+
+export function channelMinimum(S, C, mu, L, g, T = 0, asy = null) {
+  asy = asy || channelAsymptotics(S, C, mu, L, g);
+  const mMin = channelMMin(S, mu, T);
+  const lnmLo = mMin > 0 ? Math.max(LNM_LO, Math.log(mMin)) : LNM_LO;
+  if (lnmLo >= LN45) return { M: 0, lnM: -Infinity, b: S, omega: 0, asym: false, c: asy.c, A: asy.A };
+  let grid;
+  if (asy.M < M_ASYMP_VALID && asy.lnM > lnmLo) grid = [[asy.lnM, 0]];   // яма у асимптотики — без сетки
+  else {
+    const nl = lnmLo === LNM_LO ? 40 : Math.max(8, Math.round(40 * (LN45 - lnmLo) / (LN45 - LNM_LO)));
+    const lnm = lnmLo === LNM_LO ? LNM : Array.from({ length: nl }, (_, i) => lnmLo + (LN45 - lnmLo) * i / (nl - 1));
+    grid = TG.flatMap((t) => lnm.map((lm) => [lm, t]));
+  }
   let best = { M: 0, lnM: -Infinity, b: S, omega: Infinity, asym: false }, bi = null;
-  for (const t of TG) for (const lm of LNM) {
+  for (const [lm, t] of grid) {
     const M = Math.exp(lm), b = S + t * M;
     if (b < 0) continue;
     const o = omegaRel(M, b, mu, L, g);
     if (o < best.omega) { best = { M, lnM: lm, b, omega: o, asym: false }; bi = [lm, t]; }
   }
   const f = ([lm, t]) => {
-    const lmc = Math.min(Math.max(lm, Math.log(M_ASYMP)), Math.log(6));
+    const lmc = Math.min(Math.max(lm, lnmLo), LNM_HI);
     const M = Math.exp(lmc), b = S + t * M;
     return b >= 0 ? omegaRel(M, b, mu, L, g) : 1e3;
   };
-  const r = nelderMead(f, bi, 0.3, { xatol: 1e-9, fatol: 1e-13 * Math.abs(best.omega) + 1e-300, maxfev: 1200 });
+  const r = nelderMead(f, bi, 0.3, { xatol: T > 0 ? 1e-6 : 1e-9,
+                                     fatol: (T > 0 ? 1e-10 : 1e-13) * Math.abs(best.omega) + 1e-300, maxfev: 1200 });
   if (r.f < best.omega) {
-    const lm = Math.min(Math.max(r.x[0], Math.log(M_ASYMP)), Math.log(6)), M = Math.exp(lm);
+    const lm = Math.min(Math.max(r.x[0], lnmLo), LNM_HI), M = Math.exp(lm);
     best = { M, lnM: lm, b: S + r.x[1] * M, omega: r.f, asym: false };
   }
-  if (best.omega > -OMEGA_NOISE) best = { M: 0, lnM: -Infinity, b: S, omega: 0, asym: false };   // мельче шума
-  if (asy.M < M_ASYMP_VALID && asy.omega < best.omega) best = { M: asy.M, lnM: asy.lnM, b: S, omega: asy.omega, asym: true };
+  // мельче шума или ниже порога по T
+  if (best.omega > -OMEGA_NOISE || best.M < mMin * (1 + 1e-9)) best = { M: 0, lnM: -Infinity, b: S, omega: 0, asym: false };
+  if (asy.M < M_ASYMP_VALID && asy.M > mMin && asy.omega < best.omega)
+    best = { M: asy.M, lnM: asy.lnM, b: S, omega: asy.omega, asym: true };
   return { ...best, c: asy.c, A: asy.A };
 }
 
-export function findMinimum(mu, L, g) {
+export function findMinimum(mu, L, g, T = 0) {
   const r0 = b0FindMinimum(mu, L, g);
-  const cand = [{ phase: b0PhaseLabel(r0.M, mu, L), M: r0.M, lnM: r0.M > 0 ? Math.log(r0.M) : -Infinity, b: 0, omega: r0.omega, asym: false }];
-  const channels = [];
-  for (const { n, S, C } of thresholds(mu, L)) {
-    const ch = { ...channelMinimum(S, C, mu, L, g), n, S };
-    channels.push(ch);
-    if (ch.b > 1e-8) cand.push({ phase: 'B' + n, M: ch.M, lnM: ch.lnM, b: ch.b, omega: ch.omega, asym: ch.asym });
+  let Mb = r0.M, Ob = r0.omega;
+  if (T > 0 && Mb > 0 && Mb <= T / TC_RATIO) { Mb = 0; Ob = 0; }     // b = 0: порог приближённый (скорость 1)
+  const cand = [{ phase: b0PhaseLabel(Mb, mu, L), M: Mb, lnM: Mb > 0 ? Math.log(Mb) : -Infinity, b: 0, omega: Ob, asym: false }];
+  const thr = thresholds(mu, L);
+  const asys = thr.map(({ S, C }) => channelAsymptotics(S, C, mu, L, g));
+  // каналы в порядке асимптотической глубины; при T > 0 явно мелкие асимптотические не уточняются
+  const key = (k) => (asys[k].M < M_ASYMP_VALID ? asys[k].omega : -Infinity);
+  const order = thr.map((_, k) => k).sort((a, b) => key(a) - key(b));
+  const channels = new Array(thr.length);
+  let bestOm = Math.min(Ob, 0);
+  for (const k of order) {
+    const { n, S, C } = thr[k], asy = asys[k], small = asy.M < M_ASYMP_VALID;
+    let ch;
+    if (T > 0 && small && asy.M <= channelMMin(S, mu, T))
+      ch = { M: 0, lnM: -Infinity, b: S, omega: 0, asym: true, c: asy.c, A: asy.A, pruned: true };
+    else if (T > 0 && small && asy.omega > PRUNE_FACTOR * bestOm)
+      ch = { M: asy.M, lnM: asy.lnM, b: S, omega: asy.omega, asym: true, c: asy.c, A: asy.A, pruned: true };
+    else ch = channelMinimum(S, C, mu, L, g, T, asy);
+    ch = { ...ch, n, S };
+    channels[k] = ch;
+    if (ch.M > 0) {
+      bestOm = Math.min(bestOm, ch.omega);
+      if (ch.b > 1e-8) cand.push({ phase: 'B' + n, M: ch.M, lnM: ch.lnM, b: ch.b, omega: ch.omega, asym: ch.asym });
+    }
   }
   let best = cand[0];
   // каналы сравниваются между собой без запаса; b = 0 — точное решение: численный канал
@@ -243,10 +279,10 @@ export function findMinimum(mu, L, g) {
     if (c.omega < best.omega - (c.asym ? 0 : OMEGA_NOISE)) { best = c; break; }
   if (best.phase[0] === 'B') {
     // номер фазы — ближайший порог к найденному b* (поиск в канале n может прийти в яму соседнего порога)
-    const near = thresholds(mu, L).reduce((a, q) => (Math.abs(q.S - best.b) < Math.abs(a.S - best.b) ? q : a));
+    const near = thr.reduce((a, q) => (Math.abs(q.S - best.b) < Math.abs(a.S - best.b) ? q : a));
     best = { ...best, phase: 'B' + near.n };
   }
-  return { mu, L, g, phase: best.phase, M_star: best.M, ln_M_star: best.lnM, b_star: best.phase === 'T' ? NaN : best.b,
+  return { mu, L, g, T, phase: best.phase, M_star: best.M, ln_M_star: best.lnM, b_star: best.phase === 'T' ? NaN : best.b,
            omega_star: best.omega, asymptotic: best.asym, channels,
            b0: { M: r0.M, omega: r0.omega, phase: b0PhaseLabel(r0.M, mu, L) } };
 }

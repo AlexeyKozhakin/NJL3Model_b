@@ -14,10 +14,12 @@ for (const p of gd.channels) {
   err.A = Math.max(err.A, Math.abs(a.A - p.A)); err.lnM_asym = Math.max(err.lnM_asym, Math.abs(a.lnM - p.lnM));
 }
 for (const p of gd.points) {
-  const r = findMinimum(p.mu, p.L, g);
+  const r = findMinimum(p.mu, p.L, g, p.T || 0);
   if (r.phase !== p.phase) { err.phase_mismatch++; continue; }
-  err.lnM_star = Math.max(err.lnM_star, Math.abs(r.ln_M_star - p.lnM));
-  if (Number.isFinite(p.b)) err.b_star = Math.max(err.b_star, Math.abs(r.b_star - p.b));
-  err.omega_star_rel = Math.max(err.omega_star_rel, Math.abs(r.omega_star - p.omega) / Math.abs(p.omega));
+  // |Ω*| у шума (~1e-12): яма плоская, M* численно не определён — сверяется только фаза
+  if (p.omega !== 0 && Math.abs(p.omega) < 1e-10) continue;
+  if (p.lnM !== null) err.lnM_star = Math.max(err.lnM_star, Math.abs(r.ln_M_star - p.lnM));
+  if (p.b !== null) err.b_star = Math.max(err.b_star, Math.abs(r.b_star - p.b));
+  if (p.omega !== 0) err.omega_star_rel = Math.max(err.omega_star_rel, Math.abs(r.omega_star - p.omega) / Math.abs(p.omega));
 }
 console.log(JSON.stringify(err));
