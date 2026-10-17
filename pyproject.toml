@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "njl3"
+version = "0.1.0"
+description = "Phase structure of the NJL model in 2+1 dimensions on R^2 x S^1: closed forms, certified minimization, phase lines"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy", "scipy", "mpmath"]
+
+[project.optional-dependencies]
+plot = ["matplotlib"]
+test = ["pytest"]
+
+[project.scripts]
+njl3-b0 = "njl3.b0.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["njl3*"]
+
+[tool.pytest.ini_options]
+markers = ["slow: долгие тесты (численные интеграторы, трассировка)"]
