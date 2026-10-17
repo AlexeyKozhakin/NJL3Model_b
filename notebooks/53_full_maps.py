@@ -12,8 +12,8 @@
 --T T: порог по температуре — щели, не переживающие T, считаются нулевыми
 (njl3.full.minimize: T_c,n = (e^γ/π)(S_n/mu) M*_n); каналы ниже порога не обсчитываются.
 
-Выход: notebooks/output/53_full_maps.npz и (компактно) web/full/data/maps.json;
-при T > 0 — notebooks/output/53_full_maps_T<T>.npz и .json (данные приложения не трогаются).
+Выход: notebooks/output/53_full_maps<tag>.npz и .json; с --web json пишется в данные
+приложения web/full/data/maps.json.
 --region MU0 MU1 L0 L1 NAME: только эта область (подробная карта для приложения),
 выход notebooks/output/53_full_maps_<NAME>.json.
 
@@ -126,7 +126,8 @@ def main():
     os.makedirs(os.path.join(ROOT, 'web', 'full', 'data'), exist_ok=True)
     r9 = lambda x: None if not np.isfinite(x) else float(f'{x:.9g}')
     r6 = lambda x: None if not np.isfinite(x) else float(f'{x:.6g}')
-    out_json = (os.path.join(ROOT, 'web', 'full', 'data', 'maps.json') if T == 0 and K == 0
+    # данные приложения (web/full/data/maps.json) — только по явному --web
+    out_json = (os.path.join(ROOT, 'web', 'full', 'data', 'maps.json') if '--web' in args
                 else os.path.join(ROOT, 'notebooks', 'output', f'53_full_maps{tag}.json'))
     with open(out_json, 'w') as f:
         json.dump(dict(g=G, T=T, refine=K, mu=[r9(x) for x in MU], L=[r9(x) for x in L],

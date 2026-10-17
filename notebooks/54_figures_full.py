@@ -3,6 +3,7 @@
 
     python notebooks/54_figures_full.py           # рисунки 1–3
     python notebooks/54_figures_full.py --maps    # + карты M*, b* из 53_full_maps.npz
+    python notebooks/54_figures_full.py --maps SRC.npz OUT.png   # другая карта (порог T, область)
 
 Выход: notebooks/output/54_*.png
 """
@@ -82,34 +83,45 @@ def fig_strong_well():
     fig.tight_layout(); fig.savefig(os.path.join(OUT, '54_strong_well.png'), dpi=150); plt.close(fig)
 
 
-def fig_maps():
-    d = np.load(os.path.join(OUT, '53_full_maps.npz'), allow_pickle=True)
-    L, mu, lnM, b, phase = d['L'], d['mu'], d['lnM'], d['b'], d['phase']
+def fig_maps(src='53_full_maps.npz', out='54_maps.png', title=None):
+    """Карты M*, b* из npz notebooks/53 (любая сетка, в т.ч. уточнённая); серое — M = 0."""
+    from matplotlib.collections import LineCollection
+    from matplotlib.colors import ListedColormap
+    d = np.load(os.path.join(OUT, src), allow_pickle=True)
+    L, mu, lnM, b, phase = d['L'], d['mu'], d['lnM'], d['b'], d['phase'].astype(str)
+    T = float(d['T']) if 'T' in d.files else 0.0
+    logM = np.where(np.isfinite(lnM), lnM / math.log(10), np.nan)
+    lo = max(-8, min(-1, math.floor(np.nanmin(logM))))
     fig, axes = plt.subplots(1, 2, figsize=(12.5, 4.8))
-    logM = np.clip(lnM / math.log(10), -8, 1)
-    im = axes[0].pcolormesh(L, mu, logM.T, cmap='Blues', shading='auto', vmin=-8, vmax=1)
-    cb = fig.colorbar(im, ax=axes[0], ticks=[-8, -6, -4, -2, 0]); cb.set_label('M*')
-    cb.ax.set_yticklabels(['≤10⁻⁸', '10⁻⁶', '10⁻⁴', '10⁻²', '1'])
-    im = axes[1].pcolormesh(L, mu, np.nan_to_num(b).T, cmap='Oranges', shading='auto')
-    cb = fig.colorbar(im, ax=axes[1]); cb.set_label('b*')
-    # границы фаз
-    for ax in axes:
-        for i in range(len(L)):
-            for j in range(len(mu)):
-                if i + 1 < len(L) and phase[i, j] != phase[i + 1, j]:
-                    x = 0.5 * (L[i] + L[i + 1]); y0 = mu[max(j - 1, 0)] if j else mu[0]
-                    ax.plot([x, x], [0.5 * (mu[j] + mu[max(j - 1, 0)]), 0.5 * (mu[j] + mu[min(j + 1, len(mu) - 1)])], 'k-', lw=0.5)
-                if j + 1 < len(mu) and phase[i, j] != phase[i, j + 1]:
-                    y = 0.5 * (mu[j] + mu[j + 1])
-                    ax.plot([0.5 * (L[i] + L[max(i - 1, 0)]), 0.5 * (L[i] + L[min(i + 1, len(L) - 1)])], [y, y], 'k-', lw=0.5)
-        ax.set_xlabel('L'); ax.set_ylabel('μ')
-    axes[0].set_title('M*'); axes[1].set_title('b*')
-    fig.suptitle('Глобальный минимум по (M, b), g = −1; линии — границы фаз')
-    fig.tight_layout(); fig.savefig(os.path.join(OUT, '54_maps.png'), dpi=150); plt.close(fig)
+    # границы ячеек и линии между клетками разных фаз
+    eL = np.concatenate([[L[0]], 0.5 * (L[1:] + L[:-1]), [L[-1]]])
+    eM = np.concatenate([[mu[0]], 0.5 * (mu[1:] + mu[:-1]), [mu[-1]]])
+    segs = [[(eL[i + 1], eM[j]), (eL[i + 1], eM[j + 1])] for i, j in np.argwhere(phase[1:, :] != phase[:-1, :])]
+    segs += [[(eL[i], eM[j + 1]), (eL[i + 1], eM[j + 1])] for i, j in np.argwhere(phase[:, 1:] != phase[:, :-1])]
+    zero = np.where(phase == 'T', 1.0, np.nan)
+    for ax, Z, cmap, kw, lab in ((axes[0], np.clip(logM, lo, 1), 'Blues', dict(vmin=lo, vmax=1), 'M*'),
+                                 (axes[1], b, 'Oranges', {}, 'b*')):
+        ax.pcolormesh(eL, eM, zero.T, cmap=ListedColormap(['#c9c7c0']), shading='flat')
+        im = ax.pcolormesh(eL, eM, Z.T, cmap=cmap, shading='flat', **kw)
+        if lab == 'M*':
+            ticks = list(range(lo, 1, 2 if -lo > 4 else 1))
+            cb = fig.colorbar(im, ax=ax, ticks=ticks)
+            cb.ax.set_yticklabels([('≤' if k == -8 and lo == -8 else '') + ('1' if k == 0 else f'$10^{{{k}}}$') for k in ticks])
+        else:
+            cb = fig.colorbar(im, ax=ax)
+        cb.set_label(lab)
+        ax.add_collection(LineCollection(segs, colors='k', linewidths=0.5))
+        ax.set_xlim(eL[0], eL[-1]); ax.set_ylim(eM[0], eM[-1])
+        ax.set_xlabel('L'); ax.set_ylabel('μ'); ax.set_title(lab)
+    suffix = f', порог T = {T:g} (серое — M = 0)' if T > 0 else ''
+    fig.suptitle(title or f'Глобальный минимум по (M, b), g = −1{suffix}; линии — границы фаз')
+    fig.tight_layout(); fig.savefig(os.path.join(OUT, out), dpi=150); plt.close(fig)
 
 
 if __name__ == '__main__':
     if '--maps' in sys.argv:
-        fig_maps()
+        # python notebooks/54_figures_full.py --maps [SRC.npz OUT.png]
+        k = sys.argv.index('--maps')
+        fig_maps(*sys.argv[k + 1:k + 3]) if len(sys.argv) > k + 2 else fig_maps()
     else:
         fig_log_instability(); fig_collapse(); fig_strong_well()
