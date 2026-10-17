@@ -39,7 +39,7 @@ function baseLayout(t, extra = {}) {
 const CFG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'],
               toImageButtonOptions: { format: 'png', scale: 2, filename: 'njl3_full' } };
 
-const state = { theme: 'auto', bnd: true, asym: true, mu: 4.0, L: 2.0 };
+const state = { theme: 'auto', bnd: true, asym: true, mu: 4.0, L: 2.0, zoom: 'near' };
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
   for (const k of Object.keys(state)) if (p.has(k)) {
@@ -159,6 +159,54 @@ function runPoint(mu, L) {
         <td>${c.A.toFixed(5)}</td><td>${c.M > 0 ? c.lnM.toFixed(3) + (c.asym ? '*' : '') : '— (< порога)'}</td><td>${c.M > 0 ? (c.b - c.S).toExponential(2) : '—'}</td><td>${c.M > 0 ? c.omega.toExponential(3) : '0'}</td></tr>`).join('');
     drawOmegaMap(r);
     drawChannel(r);
+    drawSlices(r);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Срезы через минимум: Ω(M*, b) и Ω(M, b*)
+// ---------------------------------------------------------------------------
+function drawSlices(r) {
+  const t = tokens();
+  if (!(r.M_star > 0) || !Number.isFinite(r.b_star)) {
+    // M = 0: b не определено — срезов нет
+    for (const id of ['chart-slice-b', 'chart-slice-M']) Plotly.purge(id);
+    $('slice-b-title').textContent = 'M* = 0: b* не определено, срезов нет';
+    $('slice-M-title').textContent = '';
+    return;
+  }
+  const Ms = r.M_star, bs = r.b_star, near = state.zoom === 'near';
+  const wB = Math.min(8 * Ms, r.mu + 1);
+  const [b0, b1] = near ? [Math.max(0, bs - wB), bs + wB] : [0, Math.max(r.mu + 1, bs + 0.5)];
+  const [M0, M1] = near ? [0, 3 * Ms] : [0, Math.max(2, 1.5 * Ms)];
+  const N = 241;
+  const bArr = linspace(b0, b1, N), MArr = linspace(M0, M1, N);
+  $('slice-b-title').innerHTML = `Ω(M*, b) − Ω(0, 0), M* = ${fmtM(r.ln_M_star)}`;
+  $('slice-M-title').innerHTML = `Ω(M, b*) − Ω(0, 0), b* = ${bs.toFixed(6)}`;
+  const thr = thresholds(r.mu, r.L).filter((q) => q.S >= b0 && q.S <= b1);
+  // порог по температуре для канала минимума (для b = 0 — скорость 1)
+  const Tt = r.T || 0;
+  const nB = r.phase[0] === 'B' ? Number(r.phase.slice(1)) : null;
+  const S = nB !== null ? thresholds(r.mu, r.L)[nB].S : r.mu;
+  const mMin = Tt > 0 ? channelMMin(S, r.mu, Tt) : 0;
+  const star = (x) => ({ type: 'scatter', mode: 'markers', x: [x], y: [r.omega_star], name: 'минимум', hoverinfo: 'skip',
+                         marker: { symbol: 'star', size: 13, color: t.ink, line: { color: t.surface, width: 1.5 } } });
+  const lay = (xt, shapes) => baseLayout(t, { xaxis: { title: { text: xt } }, showlegend: false,
+    yaxis: { title: { text: 'ΔΩ' }, zeroline: true, zerolinecolor: t.axis, zerolinewidth: 1.5, exponentformat: 'power' },
+    shapes, margin: { l: 64, r: 8, t: 8, b: 40 } });
+  ask({ type: 'slice', mu: r.mu, L: r.L, g: G, M: bArr.map(() => Ms), b: bArr }, ({ om }) => {
+    Plotly.react('chart-slice-b', [
+      { type: 'scatter', mode: 'lines', x: bArr, y: Array.from(om), line: { color: t.s1, width: 2 },
+        hovertemplate: 'b = %{x:.6f}<br>ΔΩ = %{y:.5e}<extra></extra>' }, star(bs)],
+      lay('b', thr.map((q) => ({ type: 'line', yref: 'paper', y0: 0, y1: 1, x0: q.S, x1: q.S,
+                                 line: { color: t.muted, width: 1, dash: 'dot' } }))), CFG);
+  });
+  ask({ type: 'slice', mu: r.mu, L: r.L, g: G, M: MArr, b: MArr.map(() => bs) }, ({ om }) => {
+    Plotly.react('chart-slice-M', [
+      { type: 'scatter', mode: 'lines', x: MArr, y: Array.from(om), line: { color: t.s1, width: 2 },
+        hovertemplate: 'M = %{x:.6f}<br>ΔΩ = %{y:.5e}<extra></extra>' }, star(Ms)],
+      lay('M', mMin > 0 && mMin > M0 ? [{ type: 'rect', yref: 'paper', y0: 0, y1: 1, x0: M0, x1: Math.min(mMin, M1),
+                                          fillcolor: t.muted, opacity: 0.15, line: { width: 0 } }] : []), CFG);
   });
 }
 
@@ -228,6 +276,8 @@ function drawChannel(r) {
 async function main() {
   readHash(); applyTheme();
   $('theme').value = state.theme; $('show-bnd').checked = state.bnd; $('show-asym').checked = state.asym;
+  $('slice-zoom').value = state.zoom;
+  $('slice-zoom').addEventListener('change', () => { state.zoom = $('slice-zoom').value; writeHash(); if (lastPoint) drawSlices(lastPoint); });
   try {
     MAPS = await (await fetch('data/maps.json')).json();
     $('status').textContent = `Карты: ${MAPS.mu.length} × ${MAPS.L.length} точек (μ ∈ [${MAPS.mu[0]}, ${MAPS.mu.at(-1)}], L ∈ [${MAPS.L[0]}, ${MAPS.L.at(-1)}]), порог T = ${fmtT(tempT())}.`;
@@ -238,7 +288,7 @@ async function main() {
   drawMaps();
   runPoint(state.mu, state.L);
   for (const [id, key] of [['show-bnd', 'bnd'], ['show-asym', 'asym']]) $(id).addEventListener('change', () => { state[key] = $(id).checked; writeHash(); drawMaps(); });
-  $('theme').addEventListener('change', () => { state.theme = $('theme').value; writeHash(); applyTheme(); drawMaps(); if (lastPoint) { drawOmegaMap(lastPoint); drawChannel(lastPoint); } });
+  $('theme').addEventListener('change', () => { state.theme = $('theme').value; writeHash(); applyTheme(); drawMaps(); if (lastPoint) { drawOmegaMap(lastPoint); drawChannel(lastPoint); drawSlices(lastPoint); } });
   for (const id of ['map-M', 'map-b']) $(id).on('plotly_click', (ev) => { const p = ev.points[0]; if (p && p.x != null && p.y != null) runPoint(+p.y.toFixed(4), +p.x.toFixed(4)); });
   $('point-form').addEventListener('submit', (e) => { e.preventDefault(); runPoint(Number($('pt-mu').value), Math.max(0.05, Number($('pt-L').value))); });
   $('dl-point').addEventListener('click', () => {

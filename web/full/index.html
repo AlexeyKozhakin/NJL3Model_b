@@ -80,6 +80,33 @@
     </div>
   </section>
 
+  <section class="layout-full">
+    <div class="card">
+      <h2>Срезы через минимум</h2>
+      <div class="slice-controls">
+        <label>Масштаб
+          <select id="slice-zoom">
+            <option value="near">у минимума</option>
+            <option value="wide">широко</option>
+          </select>
+        </label>
+      </div>
+      <div class="maps">
+        <div>
+          <h3 id="slice-b-title">Ω(M*, b) − Ω(0, 0)</h3>
+          <div id="chart-slice-b" class="chart chart-mid"></div>
+        </div>
+        <div>
+          <h3 id="slice-M-title">Ω(M, b*) − Ω(0, 0)</h3>
+          <div id="chart-slice-M" class="chart chart-mid"></div>
+        </div>
+      </div>
+      <p class="note">Два среза двумерной карты Ω(M, b) через глобальный минимум (звезда): слева M = M* фиксировано, меняется b;
+        справа b = b* фиксировано, меняется M. «У минимума» — b* ± 8M* и M ∈ [0, 3M*] (у порога яма по b шириной ~M*);
+        «широко» — b ∈ [0, μ + 1], M ∈ [0, max(2, 1.5M*)]. Пунктир — пороги b = S<sub>n</sub>; серая полоса — щели меньше M<sub>min</sub>(T).</p>
+    </div>
+  </section>
+
   <footer class="page-footer">
     <p>Случай b = 0: <a href="../b0/">фазовая диаграмма при b = 0</a>. Версия <span id="version">0.1.0</span>.</p>
   </footer>

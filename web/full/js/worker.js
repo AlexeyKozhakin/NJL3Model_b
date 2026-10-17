@@ -24,6 +24,12 @@ function handle(type, job, data) {
       self.postMessage({ type, job, i, row }, [row.buffer]);
     }
     self.postMessage({ type, job, done: true });
+  } else if (type === 'slice') {
+    // значения Ω вдоль среза: пары (M[i], b[i])
+    const { mu, L, g, M, b } = data;
+    const om = new Float64Array(M.length);
+    for (let i = 0; i < M.length; i++) om[i] = omegaRel(M[i], b[i], mu, L, g);
+    self.postMessage({ type, job, om }, [om.buffer]);
   } else if (type === 'channel') {
     const { mu, L, g, S, C, lnM } = data;
     const asy = channelAsymptotics(S, C, mu, L, g);
