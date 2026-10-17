@@ -237,8 +237,10 @@ export function findMinimum(mu, L, g) {
     if (ch.b > 1e-8) cand.push({ phase: 'B' + n, M: ch.M, lnM: ch.lnM, b: ch.b, omega: ch.omega, asym: ch.asym });
   }
   let best = cand[0];
-  // b = 0 — точное решение: численный канал побеждает его только с запасом больше шума
-  for (const c of cand.slice(1)) if (c.omega < best.omega - (c.asym ? 0 : OMEGA_NOISE)) best = c;
+  // каналы сравниваются между собой без запаса; b = 0 — точное решение: численный канал
+  // побеждает его только с запасом больше шума, асимптотический — без запаса
+  for (const c of cand.slice(1).sort((x, y) => x.omega - y.omega))
+    if (c.omega < best.omega - (c.asym ? 0 : OMEGA_NOISE)) { best = c; break; }
   if (best.phase[0] === 'B') {
     // номер фазы — ближайший порог к найденному b* (поиск в канале n может прийти в яму соседнего порога)
     const near = thresholds(mu, L).reduce((a, q) => (Math.abs(q.S - best.b) < Math.abs(a.S - best.b) ? q : a));

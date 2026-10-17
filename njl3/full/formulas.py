@@ -17,6 +17,7 @@ S_n = sqrt(mu² − k_n²), C_0 = 1, C_{n≥1} = 2.
 Мода n = 0 в Ω_μL берётся в элементарных функциях, остальные — Гаусс–Лежандр.
 """
 
+import functools
 import json
 import math
 import os
@@ -36,22 +37,34 @@ _PIECES = [(p['a'], p['b'], np.array(p['coef'])) for p in _TAB['pieces']]
 _XMAX = _TAB['x_max']
 
 
+_EDGES = np.array([a for a, _, _ in _PIECES] + [_PIECES[-1][1]])
+_NC = max(len(c) for _, _, c in _PIECES)
+_COEF = np.zeros((len(_PIECES) + 1, _NC))                 # строка-заглушка: s = 0 вне таблицы
+for _i, (_, _, _c) in enumerate(_PIECES):
+    _COEF[_i, :len(_c)] = _c
+_COEF_T = [np.ascontiguousarray(_COEF[:, j]) for j in range(_NC)]
+_MID = np.array([0.5 * (a + b) for a, b, _ in _PIECES] + [0.0])
+_HALF = np.array([0.5 * (b - a) for a, b, _ in _PIECES] + [1.0])
+
+
 def s_func(x):
-    """s(x) для массива x ≥ 0 (абсолютная точность ~1e-15; s = 0 при x ≥ 64)."""
+    """s(x) для массива x ≥ 0 (абсолютная точность ~1e-15; s = 0 при x ≥ 64).
+
+    Один проход схемы Кленшоу по всем x сразу (коэффициенты — по номеру куска)."""
     x = np.asarray(x, dtype=float)
-    out = np.zeros_like(x)
-    for i, (a, b, c) in enumerate(_PIECES):
-        m = (x >= a) & (x < b) if i else (x >= a) & (x < b)
-        if not np.any(m):
-            continue
-        xm = x[m]
-        t = (2.0 * xm - (a + b)) / (b - a)
-        v = np.polynomial.chebyshev.chebval(t, c)
-        if i == 0:
-            with np.errstate(divide='ignore', invalid='ignore'):
-                v = v - np.where(xm > 0, xm * xm / 4.0 * np.log(xm), 0.0)
-        out[m] = v
-    return out
+    shape = x.shape
+    x = x.ravel()
+    k = np.searchsorted(_EDGES, x, side='right') - 1
+    k = np.where((k < 0) | (k >= len(_PIECES)), len(_PIECES), k)
+    t2 = 2.0 * (x - _MID[k]) / _HALF[k]
+    b1 = np.zeros_like(x)
+    b2 = np.zeros_like(x)
+    for j in range(_NC - 1, 0, -1):
+        b1, b2 = _COEF_T[j][k] + t2 * b1 - b2, b1
+    v = _COEF_T[0][k] + 0.5 * t2 * b1 - b2
+    with np.errstate(divide='ignore', invalid='ignore'):
+        v = v - np.where((k == 0) & (x > 0), x * x / 4.0 * np.log(x), 0.0)
+    return v.reshape(shape)
 
 
 # ==============================================================================
@@ -200,8 +213,8 @@ def omega_rel(M, b, mu, L, g):
     if M == 0.0:
         return 0.0
     return (M * M / (2.0 * g) + dU(M, b)
-            + omega_L(M, b, L) - omega_L(0.0, b, L)
-            + omega_muL(M, b, mu, L) - omega_muL(0.0, b, mu, L))
+            + omega_L(M, b, L) - _omega_L0(float(L))
+            + omega_muL(M, b, mu, L) - _omega_muL0(float(mu), float(L)))
 
 
 # ==============================================================================
@@ -310,13 +323,32 @@ def omega_muL_vec(M, b, mu, L):
     return (-tot / (PI * L)).reshape(shape)
 
 
+@functools.lru_cache(maxsize=4096)
+def _omega_L0(L):
+    """Ω_L(0, b) — от b не зависит (при M = 0 сдвиг b = сдвиг импульса); численно ~1e-16."""
+    return float(omega_L_vec(0.0, 0.0, L)[0])
+
+
+@functools.lru_cache(maxsize=65536)
+def _omega_muL0(mu, L):
+    """Ω_μL(0, b) — от b не зависит (как и Ω_L(0, b)); численно ~1e-15."""
+    return float(omega_muL_vec(0.0, 0.0, mu, L)[0])
+
+
+_CHUNK = 64                         # точек за проход: массивы (точки × узлы) остаются в кэше процессора
+
+
 def omega_rel_vec(M, b, mu, L, g, OL0=None):
     """Omega(M, b) − Omega(0, 0) для массивов M, b. OL0 — готовый Ω_L(M, b) − Ω_L(0, b) (не зависит от mu)."""
     M = np.asarray(M, dtype=float)
     b = np.asarray(b, dtype=float)
     M, b = np.broadcast_arrays(M, b)
+    if OL0 is None and M.size > _CHUNK:
+        Mf, bf = M.ravel(), b.ravel()
+        return np.concatenate([omega_rel_vec(Mf[k:k + _CHUNK], bf[k:k + _CHUNK], mu, L, g)
+                               for k in range(0, Mf.size, _CHUNK)]).reshape(M.shape)
     if OL0 is None:
-        OL0 = omega_L_vec(M, b, L) - omega_L_vec(np.zeros_like(b), b, L)
+        OL0 = omega_L_vec(M, b, L) - _omega_L0(float(L))
     dUv = np.vectorize(dU)(M, b)
-    out = M * M / (2 * g) + dUv + OL0 + omega_muL_vec(M, b, mu, L) - omega_muL_vec(np.zeros_like(b), b, mu, L)
+    out = M * M / (2 * g) + dUv + OL0 + omega_muL_vec(M, b, mu, L) - _omega_muL0(float(mu), float(L))
     return np.where(M == 0, 0.0, out)

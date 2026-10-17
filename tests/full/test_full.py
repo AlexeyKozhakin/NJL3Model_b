@@ -94,3 +94,25 @@ def test_dU_closed_form_matches_2d_integral():
     from functions.dU_fast import dU_scalar
     for M, b in [(0.5, 0.3), (2.0, 1.0), (0.8, 2.5), (3.0, 3.5)]:
         assert dU_scalar(b, M, 1600, 1600) == pytest.approx(F.dU(M, b), abs=2e-6)
+
+
+def test_channels_compared_without_noise_margin():
+    """Каналы сравниваются между собой без запаса шума (раньше B1 «защищался» от более глубокого B2)."""
+    r = find_minimum(6.647, 5.134, -1.0)
+    om = {ch['n']: ch['omega'] for ch in r.channels}
+    assert om[2] < om[1] < 0
+    assert r.phase == 'B2'
+
+
+def test_temperature_cutoff():
+    """T > 0: щель канала n выживает при T < (e^γ/π)(S_n/mu) M*_n (сверено notebooks/57)."""
+    mu, L = 6.647, 5.134
+    r0 = find_minimum(mu, L, -1.0)
+    n = int(r0.phase[1:])
+    S = dict((q[0], q[1]) for q in thresholds(mu, L))[n]
+    Tc = math.exp(np.euler_gamma) / math.pi * S / mu * r0.M_star
+    assert find_minimum(mu, L, -1.0, T=0.9 * Tc).phase == r0.phase
+    assert find_minimum(mu, L, -1.0, T=1.1 * Tc).phase != r0.phase
+    assert find_minimum(mu, L, -1.0, T=1e-3).phase == 'T'
+    # сильная щель (V) не затрагивается
+    assert find_minimum(3.0, 1.0, -1.0, T=1e-3).M_star > 0.1
