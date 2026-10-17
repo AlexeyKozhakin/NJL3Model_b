@@ -5,12 +5,16 @@
 или 'B<n>' у порога S_n), M*, ln M* (экспоненциально малые щели), b*, Omega*,
 флаг асимптотики.
 
+--refine K: адаптивное уточнение — K раз делить пополам ячейки, где соседние точки в разных
+фазах или ln M* меняется больше чем на REFINE_DLNM; итоговая сетка (2^K (N − 1) + 1)², внутри
+однородных ячеек — билинейная интерполяция (флаг interp).
+
 --T T: порог по температуре — щели, не переживающие T, считаются нулевыми
 (njl3.full.minimize: T_c,n = (e^γ/π)(S_n/mu) M*_n); каналы ниже порога не обсчитываются.
 
 Выход: notebooks/output/53_full_maps.npz и (компактно) web/full/data/maps.json;
 при T > 0 — notebooks/output/53_full_maps_T<T>.npz и .json (данные приложения не трогаются).
-Запуск:  python notebooks/53_full_maps.py [--n N_MU N_L] [--T T]
+Запуск:  python notebooks/53_full_maps.py [--n N_MU N_L] [--T T] [--refine K]
 """
 
 import json
@@ -34,8 +38,12 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 args = sys.argv[1:]
 N_MU, N_L = (int(args[args.index('--n') + 1]), int(args[args.index('--n') + 2])) if '--n' in args else (60, 60)
 T = float(args[args.index('--T') + 1]) if '--T' in args else 0.0
-MU = np.linspace(0.05, 7.0, N_MU)
-L = np.linspace(0.1, 10.0, N_L)
+K = int(args[args.index('--refine') + 1]) if '--refine' in args else 0
+REFINE_DLNM = 1.0
+R = 2 ** K
+NF_MU, NF_L = R * (N_MU - 1) + 1, R * (N_L - 1) + 1          # итоговая (тонкая) сетка
+MU = np.linspace(0.05, 7.0, NF_MU)
+L = np.linspace(0.1, 10.0, NF_L)
 
 
 def point(ij):
@@ -44,35 +52,80 @@ def point(ij):
     return i, j, (r.phase, r.M_star, r.ln_M_star, r.b_star, r.omega_star, r.asymptotic)
 
 
+def compute(pool, pts, res, t0, label):
+    # тяжёлые (большие L·mu — много порогов) первыми: равномерная загрузка процессов
+    jobs = sorted(pts, key=lambda q: -L[q[0]] * MU[q[1]])
+    for k, (i, j, out) in enumerate(pool.imap_unordered(point, jobs, chunksize=4)):
+        res[(i, j)] = out
+    print(f"  {label}: {len(jobs)} точек, всего {len(res)}, {time.time() - t0:.0f} с", flush=True)
+
+
+def needs_refine(res, corners):
+    ph = {res[c][0] for c in corners}
+    if len(ph) > 1:
+        return True
+    lm = [res[c][2] for c in corners if np.isfinite(res[c][2])]
+    return len(lm) > 1 and max(lm) - min(lm) > REFINE_DLNM
+
+
 def main():
     t0 = time.time()
-    res = [[None] * N_MU for _ in range(N_L)]
-    # по точкам, тяжёлые (большие L·mu — много порогов) первыми: равномерная загрузка процессов
-    jobs = sorted(((i, j) for i in range(N_L) for j in range(N_MU)), key=lambda q: -L[q[0]] * MU[q[1]])
+    res = {}
     with Pool() as pool:
-        for k, (i, j, out) in enumerate(pool.imap_unordered(point, jobs, chunksize=4)):
-            res[i][j] = out
-            if (k + 1) % (N_MU * 6) == 0:
-                print(f"  {k + 1}/{len(jobs)} точек, {time.time() - t0:.0f} с", flush=True)
-    phase = np.array([[c[0] for c in r] for r in res])
-    M = np.array([[c[1] for c in r] for r in res])
-    lnM = np.array([[c[2] for c in r] for r in res])
-    b = np.array([[c[3] for c in r] for r in res])
-    Om = np.array([[c[4] for c in r] for r in res])
-    asym = np.array([[c[5] for c in r] for r in res])
-    tag = f'_T{T:g}' if T > 0 else ''
+        compute(pool, [(i, j) for i in range(0, NF_L, R) for j in range(0, NF_MU, R)], res, t0, 'базовая сетка')
+        cells = [(i, j) for i in range(0, NF_L - 1, R) for j in range(0, NF_MU - 1, R)]
+        s = R
+        unrefined = []                                       # (i, j, s) — ячейки без уточнения
+        while s > 1:
+            ref = []
+            for i, j in cells:
+                corners = [(i, j), (i + s, j), (i, j + s), (i + s, j + s)]
+                (ref if needs_refine(res, corners) else unrefined).append((i, j, s))
+            h = s // 2
+            new = {(i + a, j + c) for i, j, _ in ref for a in (0, h, s) for c in (0, h, s)} - res.keys()
+            compute(pool, sorted(new), res, t0, f'уточнение шаг {h}: {len(ref)} ячеек')
+            cells = [(i + a, j + c) for i, j, _ in ref for a in (0, h) for c in (0, h)]
+            s = h
+    # остальное — билинейная интерполяция внутри однородных ячеек (фаза одна)
+    phase = np.empty((NF_L, NF_MU), dtype=object)
+    M, lnM, b, Om = (np.full((NF_L, NF_MU), np.nan) for _ in range(4))
+    asym = np.zeros((NF_L, NF_MU), dtype=bool)
+    interp = np.ones((NF_L, NF_MU), dtype=bool)
+    for (i, j), c in res.items():
+        phase[i, j], M[i, j], lnM[i, j], b[i, j], Om[i, j], asym[i, j] = c
+        interp[i, j] = False
+    for i, j, s in unrefined:
+        C = [res[(i, j)], res[(i + s, j)], res[(i, j + s)], res[(i + s, j + s)]]
+        for a in range(s + 1):
+            for c in range(s + 1):
+                if not interp[i + a, j + c]:
+                    continue
+                u, v = a / s, c / s
+                w = [(1 - u) * (1 - v), u * (1 - v), (1 - u) * v, u * v]
+                bil = lambda k: sum(wk * Ck[k] for wk, Ck in zip(w, C)) if all(np.isfinite(Ck[k]) for Ck in C) else (
+                    C[0][k] if not np.isfinite(C[0][k]) else np.nan)
+                phase[i + a, j + c] = C[0][0]
+                lnM[i + a, j + c] = bil(2)
+                M[i + a, j + c] = np.exp(lnM[i + a, j + c]) if np.isfinite(lnM[i + a, j + c]) else 0.0
+                b[i + a, j + c], Om[i + a, j + c] = bil(3), bil(4)
+                asym[i + a, j + c] = all(Ck[5] for Ck in C)
+    phase = phase.astype(str)
+    print(f"сетка {NF_L}×{NF_MU}: посчитано {len(res)} точек ({100 * len(res) / interp.size:.0f}%), "
+          f"остальное — интерполяция", flush=True)
+    tag = (f'_T{T:g}' if T > 0 else '') + (f'_r{K}' if K else '')
     np.savez(os.path.join(ROOT, 'notebooks', 'output', f'53_full_maps{tag}.npz'), mu=MU, L=L, phase=phase, M=M,
-             lnM=lnM, b=b, omega=Om, asym=asym, T=T)
+             lnM=lnM, b=b, omega=Om, asym=asym, interp=interp, T=T)
     os.makedirs(os.path.join(ROOT, 'web', 'full', 'data'), exist_ok=True)
     r9 = lambda x: None if not np.isfinite(x) else float(f'{x:.9g}')
-    out_json = (os.path.join(ROOT, 'web', 'full', 'data', 'maps.json') if T == 0
+    r6 = lambda x: None if not np.isfinite(x) else float(f'{x:.6g}')
+    out_json = (os.path.join(ROOT, 'web', 'full', 'data', 'maps.json') if T == 0 and K == 0
                 else os.path.join(ROOT, 'notebooks', 'output', f'53_full_maps{tag}.json'))
     with open(out_json, 'w') as f:
-        json.dump(dict(g=G, T=T, mu=[r9(x) for x in MU], L=[r9(x) for x in L],
-                       phase=phase.tolist(), lnM=[[r9(x) for x in r] for r in lnM],
-                       b=[[r9(x) for x in r] for r in b], omega=[[r9(x) for x in r] for r in Om],
-                       asym=asym.astype(int).tolist()), f, separators=(',', ':'))
-    print(f"Готово за {time.time() - t0:.0f} с")
+        json.dump(dict(g=G, T=T, refine=K, mu=[r9(x) for x in MU], L=[r9(x) for x in L],
+                       phase=phase.tolist(), lnM=[[r6(x) for x in r] for r in lnM],
+                       b=[[r6(x) for x in r] for r in b], omega=[[r6(x) for x in r] for r in Om],
+                       asym=asym.astype(int).tolist(), interp=interp.astype(int).tolist()), f, separators=(',', ':'))
+    print(f"Готово за {time.time() - t0:.0f} с ({out_json})")
 
 
 if __name__ == '__main__':

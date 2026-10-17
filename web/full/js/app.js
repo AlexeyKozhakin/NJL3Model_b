@@ -84,6 +84,7 @@ function drawMaps() {
   if (!MAPS) return;
   const t = tokens();
   const { L, mu, lnM, b, phase, omega, asym } = MAPS;
+  const interp = MAPS.interp || null;
   const T = (A) => mu.map((_, j) => L.map((_, i) => A[i][j]));       // [i=L][j=mu] -> z[mu][L]
   const logM = T(lnM.map((r) => r.map((v) => (v === null ? null : Math.max(v / LN10, -12)))));
   // шкала M*: от наименьшей ненулевой щели (при пороге T она ~2T) до 10
@@ -96,7 +97,7 @@ function drawMaps() {
   const zeroLayer = { type: 'heatmap', x: L, y: mu, z: zero, customdata: null, colorscale: [[0, t.muted], [1, t.muted]], opacity: 0.35,
                       showscale: false, zsmooth: false, hovertemplate: 'L = %{x:.3f}<br>μ = %{y:.3f}<br>M = 0 (щель не переживает T)<extra></extra>' };
   const cd = T(phase.map((r, i) => r.map((p, j) =>
-    `${p}<br>M* = ${fmtM(lnM[i][j])}${asym[i][j] ? ' (асимпт.)' : ''}<br>b* = ${b[i][j] === null ? '—' : b[i][j].toFixed(5)}<br>Ω* = ${omega[i][j] === null ? '—' : omega[i][j].toExponential(3)}`)));
+    `${p}<br>M* = ${fmtM(lnM[i][j])}${asym[i][j] ? ' (асимпт.)' : ''}<br>b* = ${b[i][j] === null ? '—' : b[i][j].toFixed(5)}<br>Ω* = ${omega[i][j] === null ? '—' : omega[i][j].toExponential(3)}${interp && interp[i][j] ? '<br>(интерполяция)' : ''}`)));
   const hov = 'L = %{x:.3f}<br>μ = %{y:.3f}<br>фаза %{customdata}<extra></extra>';
   const bnd = state.bnd ? boundaries() : { x: [], y: [] };
   const over = [
@@ -280,7 +281,7 @@ async function main() {
   $('slice-zoom').addEventListener('change', () => { state.zoom = $('slice-zoom').value; writeHash(); if (lastPoint) drawSlices(lastPoint); });
   try {
     MAPS = await (await fetch('data/maps.json')).json();
-    $('status').textContent = `Карты: ${MAPS.mu.length} × ${MAPS.L.length} точек (μ ∈ [${MAPS.mu[0]}, ${MAPS.mu.at(-1)}], L ∈ [${MAPS.L[0]}, ${MAPS.L.at(-1)}]), порог T = ${fmtT(tempT())}.`;
+    $('status').textContent = `Карты: ${MAPS.mu.length} × ${MAPS.L.length} точек (μ ∈ [${MAPS.mu[0]}, ${MAPS.mu.at(-1)}], L ∈ [${MAPS.L[0]}, ${MAPS.L.at(-1)}]), порог T = ${fmtT(tempT())}${MAPS.refine ? `; у границ фаз — уточнение в ${2 ** MAPS.refine} раза, внутри фаз — интерполяция` : ''}.`;
     $('temp-T').textContent = fmtT(tempT());
   } catch {
     $('status').textContent = 'Не удалось загрузить карты (data/maps.json).';
