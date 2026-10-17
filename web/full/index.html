@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NJL₃: фазовая диаграмма по (M, b)</title>
+  <meta name="description" content="Фазовая диаграмма модели NJL в 2+1 измерениях на R²×S¹ по массе M и параметру b: карты M* и b*, каналы у порогов мод, логарифмическая неустойчивость.">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+<div class="viz-root">
+  <header class="page-header">
+    <h1>NJL₃ на ℝ²×S¹: фазовая диаграмма по (M, b)</h1>
+    <p class="lead">
+      Глобальный минимум Ω(M, b) при φ = 0, g = −1. Фазы с b = 0 (V, I<sub>j</sub>) — точное
+      решение из случая b = 0; фазы B<sub>n</sub> — минимум у порога моды b ≈ S<sub>n</sub> = √(μ² − (2πn/L)²).
+      У каждого порога логарифмическая неустойчивость: Ω ≈ M²[A<sub>n</sub> − c<sub>n</sub>ln(1/M)], поэтому
+      щель M* не обращается в ноль, а бывает экспоненциально малой (карта M* — в логарифмической шкале).
+      Карты посчитаны заранее; клик по точке — расчёт в браузере.
+    </p>
+  </header>
+
+  <section class="controls" aria-label="Слои">
+    <span class="toggles">
+      <label><input id="show-bnd" type="checkbox" checked> границы фаз</label>
+      <label><input id="show-asym" type="checkbox" checked> отметить асимптотические щели</label>
+      <label>Тема
+        <select id="theme">
+          <option value="auto">как в системе</option>
+          <option value="light">светлая</option>
+          <option value="dark">тёмная</option>
+        </select>
+      </label>
+    </span>
+  </section>
+  <p id="status" class="status" role="status"></p>
+
+  <section class="maps">
+    <div class="card"><h2>M* (log₁₀)</h2><div id="map-M" class="chart chart-map"></div></div>
+    <div class="card"><h2>b*</h2><div id="map-b" class="chart chart-map"></div></div>
+  </section>
+  <div class="legend-phases">
+    <span><b>V</b> — вакуумная (b = 0, M* = M<sub>vac</sub>)</span>
+    <span><b>I<sub>j</sub></b> — промежуточная (b = 0, заполнены моды 0…j)</span>
+    <span><b>B<sub>n</sub></b> — канал у порога n (b* ≈ S<sub>n</sub>)</span>
+    <span>«асимпт.» — щель из формулы M* = exp(−A<sub>n</sub>/c<sub>n</sub> − ½)</span>
+  </div>
+
+  <section class="layout-full">
+    <div class="card">
+      <h2>Точка</h2>
+      <div class="point-grid">
+        <div>
+          <form id="point-form" class="point-form">
+            <label>μ <input id="pt-mu" type="number" step="0.01" value="4.0"></label>
+            <label>L <input id="pt-L" type="number" step="0.01" value="2.0" min="0.05"></label>
+            <button type="submit" class="primary">Рассчитать</button>
+          </form>
+          <table id="point-table" class="point-table"></table>
+          <h3>Каналы у порогов</h3>
+          <div style="overflow-x:auto"><table id="channels" class="channels"></table></div>
+          <p class="note">Жирным — канал глобального минимума. ln M*: при асимптотике M* = exp(ln M*).</p>
+          <button id="dl-point">Скачать точку (JSON)</button>
+        </div>
+        <div>
+          <h3>Ω(M, b) − Ω(0, 0) около точки</h3>
+          <div id="chart-omega" class="chart chart-mid"></div>
+          <p class="note">Синее — Ω &lt; 0, красное — Ω &gt; 0; пунктир — пороги b = S<sub>n</sub>; звезда — глобальный минимум.</p>
+        </div>
+        <div>
+          <h3 id="chan-title">[Ω(M, S<sub>n</sub>) − Ω(0)]/M² у порога</h3>
+          <div id="chart-chan" class="chart chart-mid"></div>
+          <p class="note">Асимптотика A<sub>n</sub> − c<sub>n</sub>ln(1/M) — прямая; где она ниже нуля, M = 0 неустойчив. Минимум Ω — при ln(1/M*) = A<sub>n</sub>/c<sub>n</sub> + ½.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    <p>Случай b = 0: <a href="../b0/">фазовая диаграмма при b = 0</a>. Версия <span id="version">0.1.0</span>.</p>
+  </footer>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

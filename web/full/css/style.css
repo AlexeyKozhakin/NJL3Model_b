@@ -1,0 +1,142 @@
+/* Токены: справочная палитра dataviz (светлая/тёмная тема). */
+.viz-root {
+  color-scheme: light;
+  --page:           #f9f9f7;
+  --surface-1:      #fcfcfb;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --grid:           #e1e0d9;
+  --axis:           #c3c2b7;
+  --border:         rgba(11, 11, 11, 0.10);
+  --series-1:       #2a78d6;   /* кривые Ω(M), G(M) */
+  --series-2:       #eb6834;   /* линии 2-го рода */
+  --accent:         #2a78d6;
+  /* последовательная шкала (синяя), светлая → тёмная */
+  --seq: #cde2fb,#b7d3f6,#9ec5f4,#86b6ef,#6da7ec,#5598e7,#3987e5,#2a78d6,#256abf,#1c5cab,#184f95,#104281,#0d366b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --page:           #0d0d0d;
+    --surface-1:      #1a1a19;
+    --text-primary:   #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --axis:           #383835;
+    --border:         rgba(255, 255, 255, 0.10);
+    --series-1:       #3987e5;
+    --series-2:       #d95926;
+    --accent:         #3987e5;
+    --seq: #0d366b,#104281,#184f95,#1c5cab,#256abf,#2a78d6,#3987e5,#5598e7,#6da7ec,#86b6ef,#9ec5f4,#b7d3f6,#cde2fb;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --page:           #0d0d0d;
+  --surface-1:      #1a1a19;
+  --text-primary:   #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #898781;
+  --grid:           #2c2c2a;
+  --axis:           #383835;
+  --border:         rgba(255, 255, 255, 0.10);
+  --series-1:       #3987e5;
+  --series-2:       #d95926;
+  --accent:         #3987e5;
+  --seq: #0d366b,#104281,#184f95,#1c5cab,#256abf,#2a78d6,#3987e5,#5598e7,#6da7ec,#86b6ef,#9ec5f4,#b7d3f6,#cde2fb;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: #f9f9f7; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) body { background: #0d0d0d; } }
+:root[data-theme="dark"] body { background: #0d0d0d; }
+.viz-root {
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 100vh;
+  padding: 16px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+a { color: var(--accent); }
+h1 { font-size: 22px; margin: 0 0 6px; }
+h2 { font-size: 17px; margin: 0 0 8px; }
+h3 { font-size: 14px; margin: 14px 0 2px; color: var(--text-secondary); font-weight: 600; }
+.lead { margin: 0 0 14px; color: var(--text-secondary); max-width: 1000px; }
+
+.controls {
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+}
+.controls fieldset { border: none; margin: 0; padding: 0; min-width: 0; }
+.controls legend, .controls label { font-size: 13px; color: var(--text-secondary); }
+.controls label { display: flex; flex-direction: column; gap: 2px; }
+.controls .toggles label { flex-direction: row; align-items: center; gap: 6px; }
+.toggles, .presets { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+input[type="number"], select {
+  width: 84px; padding: 5px 6px; border-radius: 6px; border: 1px solid var(--axis);
+  background: var(--surface-1); color: var(--text-primary); font: inherit; font-variant-numeric: tabular-nums;
+}
+select { width: auto; }
+button {
+  font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--axis); background: var(--surface-1); color: var(--text-primary);
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button:disabled { opacity: 0.6; cursor: progress; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.progress { height: 3px; margin: 8px 0 0; background: transparent; }
+#progress-bar { height: 100%; width: 0; background: var(--accent); transition: width 0.1s linear; }
+.status { min-height: 1.5em; margin: 4px 0 8px; font-size: 13px; color: var(--text-secondary); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px; min-width: 0; }
+.chart { width: 100%; }
+.chart-diagram { height: min(72vh, 680px); min-height: 380px; }
+.chart-small { height: 210px; }
+
+.legend-phases { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; color: var(--text-secondary); margin-top: 6px; }
+.export { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+.point-form { display: flex; gap: 10px; align-items: end; margin-bottom: 8px; flex-wrap: wrap; }
+.point-form label { display: flex; flex-direction: column; font-size: 13px; color: var(--text-secondary); }
+.point-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.point-table th { text-align: left; font-weight: 500; color: var(--text-secondary); padding: 3px 8px 3px 0; white-space: nowrap; vertical-align: top; }
+.point-table td { padding: 3px 0; overflow-wrap: anywhere; }
+.point-table tr + tr { border-top: 1px solid var(--grid); }
+.phase-badge { display: inline-block; padding: 0 8px; border-radius: 10px; border: 1px solid var(--axis); font-weight: 600; }
+
+.muted { color: var(--text-muted); }
+.page-footer { margin-top: 18px; font-size: 13px; color: var(--text-secondary); overflow-wrap: anywhere; }
+code { font-size: 12px; }
+
+@media (max-width: 600px) {
+  .viz-root { font-size: 14px; }
+  h1 { font-size: 19px; }
+  input[type="number"] { width: 68px; }
+  .controls { gap: 8px 10px; }
+  .chart-diagram { height: 420px; min-height: 0; }
+}
+
+/* Полная задача: две карты рядом, панель точки */
+.maps { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 1100px) { .maps { grid-template-columns: minmax(0, 1fr); } }
+.chart-map { height: min(60vh, 520px); min-height: 340px; }
+.chart-mid { height: 320px; }
+.layout-full { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+.point-grid { display: grid; grid-template-columns: 360px minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1200px) { .point-grid { grid-template-columns: minmax(0, 1fr); } }
+.channels { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; margin-top: 8px; }
+.channels th, .channels td { padding: 3px 6px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+.channels th { color: var(--text-secondary); font-weight: 500; }
+.channels tr.win td { font-weight: 700; }
+.note { font-size: 13px; color: var(--text-secondary); margin: 6px 0 0; }

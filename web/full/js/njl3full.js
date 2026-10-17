@@ -1,0 +1,245 @@
+// njl3full.js — Ω(M, b) модели NJL3 на R²×S¹ (φ = 0, b ≥ 0) и глобальный минимум по (M, b).
+// Порт Python-пакета njl3.full (эталон). Перед использованием: await init(sTable).
+//
+//   Ω(M, b) − Ω(0, 0) = M²/(2g) + Σ_X [X(M, b) − X(0, b)],  X ∈ {ΔU, Ω_L, Ω_μL}
+//   ΔU   = M² b / 4 (b ≥ M);  (1/3π)[(2M² + b²)√(M² − b²)/2 + (3/2)M² b arcsin(b/M)] (b ≤ M)
+//   Ω_L  = (2/(π² L²)) ∫_0^∞ dp Σ± s(L|E ± b|),  s(x) — таблица Чебышёва
+//   Ω_μL = −(1/(πL)) Σ_n C_n Σ± ∫_{F>0} (μ − √((E ± b)² + k_n²)) dp
+// У порогов b = S_n при малых M: Ω ≈ M²[A_n − c_n ln(1/M) + c_n h(t)], b = S_n + tM.
+import { findMinimum as b0FindMinimum, phaseLabel as b0PhaseLabel } from '../../b0/js/njl3b0.js';
+
+const PI = Math.PI;
+
+// ---------------------------------------------------------------------------
+// s(x)
+// ---------------------------------------------------------------------------
+let PIECES = null;
+export function init(table) {
+  PIECES = table.pieces.map((p) => ({ a: p.a, b: p.b, c: Float64Array.from(p.coef) }));
+}
+
+function chebval(t, c) {
+  let b1 = 0, b2 = 0;
+  for (let k = c.length - 1; k >= 1; k--) { const b0 = 2 * t * b1 - b2 + c[k]; b2 = b1; b1 = b0; }
+  return t * b1 - b2 + c[0];
+}
+
+export function sFunc(x) {
+  if (x >= 64) return 0;
+  for (let i = 0; i < PIECES.length; i++) {
+    const p = PIECES[i];
+    if (x < p.b) {
+      let v = chebval((2 * x - (p.a + p.b)) / (p.b - p.a), p.c);
+      if (i === 0 && x > 0) v -= x * x / 4 * Math.log(x);
+      return v;
+    }
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Квадратуры
+// ---------------------------------------------------------------------------
+function gaussLegendre(n) {
+  const x = new Float64Array(n), w = new Float64Array(n);
+  for (let i = 0; i < Math.ceil(n / 2); i++) {
+    let z = Math.cos(PI * (i + 0.75) / (n + 0.5)), dp = 0;
+    for (let it = 0; it < 100; it++) {
+      let p0 = 1, p1 = z;
+      for (let k = 2; k <= n; k++) { const p2 = ((2 * k - 1) * z * p1 - (k - 1) * p0) / k; p0 = p1; p1 = p2; }
+      dp = n * (z * p1 - p0) / (z * z - 1);
+      const dz = p1 / dp; z -= dz;
+      if (Math.abs(dz) < 1e-16) break;
+    }
+    x[i] = -z; x[n - 1 - i] = z; w[i] = w[n - 1 - i] = 2 / ((1 - z * z) * dp * dp);
+  }
+  return [x, w];
+}
+function nodes(segs, [x0, w0]) {
+  const xs = [], ws = [];
+  for (const [a, b] of segs) {
+    if (b <= a) continue;
+    const h = 0.5 * (b - a), c = 0.5 * (a + b);
+    for (let i = 0; i < x0.length; i++) { xs.push(h * x0[i] + c); ws.push(h * w0[i]); }
+  }
+  return [Float64Array.from(xs), Float64Array.from(ws)];
+}
+const GL16 = gaussLegendre(16);
+function gradedTemplate(levels) {
+  const segs = [];
+  for (let j = 0; j < levels; j++) segs.push([2 ** -(j + 1), 2 ** -j]);
+  segs.push([0, 2 ** -levels]);
+  return nodes(segs, GL16);
+}
+const [GT_X, GT_W] = gradedTemplate(16);
+const [TS_X, TS_W] = (() => {           // к обоим концам [0, 1]
+  const [gx, gw] = gradedTemplate(20);
+  const x = new Float64Array(2 * gx.length), w = new Float64Array(2 * gx.length);
+  for (let i = 0; i < gx.length; i++) { x[i] = 0.5 * gx[i]; w[i] = 0.5 * gw[i]; x[gx.length + i] = 1 - 0.5 * gx[i]; w[gx.length + i] = 0.5 * gw[i]; }
+  return [x, w];
+})();
+const [CH_X, CH_W] = nodes(Array.from({ length: 16 }, (_, i) => [i / 16, (i + 1) / 16]), GL16);
+
+// ---------------------------------------------------------------------------
+// Вклады
+// ---------------------------------------------------------------------------
+export function dU(M, b) {
+  if (M === 0) return 0;
+  if (b >= M) return M * M * b / 4;
+  return ((2 * M * M + b * b) * Math.sqrt(M * M - b * b) / 2 + 1.5 * M * M * b * Math.asin(b / M)) / (3 * PI);
+}
+
+export function omegaL(M, b, L) {
+  const pb = b > M ? Math.sqrt(b * b - M * M) : 0;
+  const Ehi = b + 64 / L, phi = Math.sqrt(Math.max(Ehi * Ehi - M * M, 0));
+  const c = Math.min(pb + 4 / L, phi);
+  let tot = 0;
+  const add = (p, w) => { const E = Math.sqrt(M * M + p * p); tot += w * (sFunc(L * (E + b)) + sFunc(L * Math.abs(E - b))); };
+  for (let i = 0; i < TS_X.length; i++) add(pb * TS_X[i], pb * TS_W[i]);
+  for (let i = 0; i < GT_X.length; i++) add(pb + (c - pb) * GT_X[i], (c - pb) * GT_W[i]);
+  for (let i = 0; i < CH_X.length; i++) add(c + (phi - c) * CH_X[i], (phi - c) * CH_W[i]);
+  return 2 / (PI * PI * L * L) * tot;
+}
+
+const pE = (E, M) => Math.sqrt(Math.max(E * E - M * M, 0));
+function J(p, M) { if (M === 0) return 0.5 * p * p; const E = Math.sqrt(M * M + p * p); return 0.5 * (p * E + M * M * Math.asinh(p / M)); }
+
+function mode0(mu, b, M) {
+  let tot = 0;
+  if (mu - b > M) { const pr = pE(mu - b, M); tot += (mu - b) * pr - J(pr, M); }
+  const lo = Math.max(M, b - mu), hi = b + mu;
+  const e2 = Math.min(b, hi);
+  if (e2 > lo) { const p1 = pE(lo, M), p2 = pE(e2, M); tot += (mu - b) * (p2 - p1) + J(p2, M) - J(p1, M); }
+  const e3 = Math.max(b, lo);
+  if (hi > e3) { const p3 = pE(e3, M), p4 = pE(hi, M); tot += (mu + b) * (p4 - p3) - (J(p4, M) - J(p3, M)); }
+  return tot;
+}
+
+function segInt(a, c, M, bs, k, mu) {
+  const h = c - a;
+  if (h <= 0) return 0;
+  let s = 0;
+  for (let i = 0; i < TS_X.length; i++) {
+    const p = a + h * TS_X[i], A = Math.sqrt(M * M + p * p) + bs;
+    s += TS_W[i] * (mu - Math.sqrt(A * A + k * k));
+  }
+  return h * s;
+}
+
+export function omegaMuL(M, b, mu, L) {
+  if (mu <= 0) return 0;
+  let tot = mode0(mu, b, M);
+  const nMax = Math.floor(L * mu / (2 * PI));
+  for (let n = 1; n <= nMax; n++) {
+    const k = 2 * PI * n / L, S = Math.sqrt(mu * mu - k * k);
+    let I = S - b > M ? segInt(0, pE(S - b, M), M, b, k, mu) : 0;
+    const lo = Math.max(M, b - S), hi = b + S;
+    const pl = pE(lo, M), pr = pE(Math.max(hi, lo), M);
+    const mid = Math.min(Math.max(pE(b, M), pl), pr);
+    I += segInt(pl, mid, M, -b, k, mu) + segInt(mid, pr, M, -b, k, mu);
+    tot += 2 * I;
+  }
+  return -tot / (PI * L);
+}
+
+export function omegaRel(M, b, mu, L, g) {
+  if (M === 0) return 0;
+  return M * M / (2 * g) + dU(M, b) + omegaL(M, b, L) - omegaL(0, b, L) + omegaMuL(M, b, mu, L) - omegaMuL(0, b, mu, L);
+}
+
+// ---------------------------------------------------------------------------
+// Каналы у порогов и глобальный минимум
+// ---------------------------------------------------------------------------
+export const M_ASYMP = 1e-6, M_PROBE = 1e-4, M_ASYMP_VALID = 1e-2, OMEGA_NOISE = 1e-12;
+
+export function thresholds(mu, L) {
+  if (mu <= 0) return [];
+  const nMax = Math.floor(L * mu / (2 * PI));
+  return Array.from({ length: nMax + 1 }, (_, n) => ({ n, S: Math.sqrt(mu * mu - (2 * PI * n / L) ** 2), C: n === 0 ? 1 : 2 }));
+}
+
+export function hUniversal(t) {
+  t = Math.abs(t);
+  return t <= 1 ? t * t : t * t - t * Math.sqrt(t * t - 1) + Math.acosh(t);
+}
+
+export function channelAsymptotics(S, C, mu, L, g) {
+  const c = C * S / (2 * PI * L * mu);
+  const A = omegaRel(M_PROBE, S, mu, L, g) / M_PROBE ** 2 + c * Math.log(1 / M_PROBE);
+  const lnM = -A / c - 0.5;
+  const M = lnM > -700 ? Math.exp(lnM) : 0;
+  return { c, A, lnM, M, omega: -0.5 * c * M * M };
+}
+
+function nelderMead(f, x0, step, { xatol, fatol, maxfev }) {
+  let simplex = [x0, [x0[0] + step, x0[1]], [x0[0], x0[1] + step]].map((x) => ({ x, f: f(x) }));
+  let fev = 3;
+  while (fev < maxfev) {
+    simplex.sort((a, b) => a.f - b.f);
+    const [B, G2, W] = simplex;
+    const dx = Math.max(Math.abs(G2.x[0] - B.x[0]), Math.abs(W.x[0] - B.x[0]), Math.abs(G2.x[1] - B.x[1]), Math.abs(W.x[1] - B.x[1]));
+    if (dx <= xatol && Math.abs(W.f - B.f) <= fatol) break;
+    const c = [(B.x[0] + G2.x[0]) / 2, (B.x[1] + G2.x[1]) / 2];
+    const pt = (a) => [c[0] + a * (W.x[0] - c[0]), c[1] + a * (W.x[1] - c[1])];
+    const R = { x: pt(-1) }; R.f = f(R.x); fev++;
+    if (R.f < B.f) {
+      const E = { x: pt(-2) }; E.f = f(E.x); fev++;
+      simplex[2] = E.f < R.f ? E : R;
+    } else if (R.f < G2.f) {
+      simplex[2] = R;
+    } else {
+      const K = { x: pt(R.f < W.f ? -0.5 : 0.5) }; K.f = f(K.x); fev++;
+      if (K.f < Math.min(R.f, W.f)) simplex[2] = K;
+      else {
+        simplex = [B, ...[G2, W].map((p) => { const x = [B.x[0] + 0.5 * (p.x[0] - B.x[0]), B.x[1] + 0.5 * (p.x[1] - B.x[1])]; fev++; return { x, f: f(x) }; })];
+      }
+    }
+  }
+  simplex.sort((a, b) => a.f - b.f);
+  return simplex[0];
+}
+
+const LNM = Array.from({ length: 40 }, (_, i) => Math.log(M_ASYMP) + (Math.log(4.5) - Math.log(M_ASYMP)) * i / 39);
+const TG = [...Array.from({ length: 13 }, (_, i) => -4 + 3 * i / 12), ...Array.from({ length: 19 }, (_, i) => -0.9 + 1.8 * i / 18),
+            ...Array.from({ length: 5 }, (_, i) => 1 + 2 * i / 4)];
+
+export function channelMinimum(S, C, mu, L, g) {
+  const asy = channelAsymptotics(S, C, mu, L, g);
+  let best = { M: 0, lnM: -Infinity, b: S, omega: Infinity, asym: false }, bi = null;
+  for (const t of TG) for (const lm of LNM) {
+    const M = Math.exp(lm), b = S + t * M;
+    if (b < 0) continue;
+    const o = omegaRel(M, b, mu, L, g);
+    if (o < best.omega) { best = { M, lnM: lm, b, omega: o, asym: false }; bi = [lm, t]; }
+  }
+  const f = ([lm, t]) => {
+    const lmc = Math.min(Math.max(lm, Math.log(M_ASYMP)), Math.log(6));
+    const M = Math.exp(lmc), b = S + t * M;
+    return b >= 0 ? omegaRel(M, b, mu, L, g) : 1e3;
+  };
+  const r = nelderMead(f, bi, 0.3, { xatol: 1e-9, fatol: 1e-13 * Math.abs(best.omega) + 1e-300, maxfev: 1200 });
+  if (r.f < best.omega) {
+    const lm = Math.min(Math.max(r.x[0], Math.log(M_ASYMP)), Math.log(6)), M = Math.exp(lm);
+    best = { M, lnM: lm, b: S + r.x[1] * M, omega: r.f, asym: false };
+  }
+  if (best.omega > -OMEGA_NOISE) best = { M: 0, lnM: -Infinity, b: S, omega: 0, asym: false };   // мельче шума
+  if (asy.M < M_ASYMP_VALID && asy.omega < best.omega) best = { M: asy.M, lnM: asy.lnM, b: S, omega: asy.omega, asym: true };
+  return { ...best, c: asy.c, A: asy.A };
+}
+
+export function findMinimum(mu, L, g) {
+  const r0 = b0FindMinimum(mu, L, g);
+  const cand = [{ phase: b0PhaseLabel(r0.M, mu, L), M: r0.M, lnM: r0.M > 0 ? Math.log(r0.M) : -Infinity, b: 0, omega: r0.omega, asym: false }];
+  const channels = [];
+  for (const { n, S, C } of thresholds(mu, L)) {
+    const ch = { ...channelMinimum(S, C, mu, L, g), n, S };
+    channels.push(ch);
+    if (ch.b > 1e-8) cand.push({ phase: 'B' + n, M: ch.M, lnM: ch.lnM, b: ch.b, omega: ch.omega, asym: ch.asym });
+  }
+  let best = cand[0];
+  // b = 0 — точное решение: численный канал побеждает его только с запасом больше шума
+  for (const c of cand.slice(1)) if (c.omega < best.omega - (c.asym ? 0 : OMEGA_NOISE)) best = c;
+  return { mu, L, g, phase: best.phase, M_star: best.M, ln_M_star: best.lnM, b_star: best.phase === 'T' ? NaN : best.b,
+           omega_star: best.omega, asymptotic: best.asym, channels,
+           b0: { M: r0.M, omega: r0.omega, phase: b0PhaseLabel(r0.M, mu, L) } };
+}

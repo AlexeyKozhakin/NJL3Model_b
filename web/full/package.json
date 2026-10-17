@@ -1,0 +1,6 @@
+{
+  "name": "njl3-full-web",
+  "private": true,
+  "type": "module",
+  "description": "Веб-приложение: фазовая диаграмма NJL3 по (M, b) (статические файлы, без сборки)"
+}
