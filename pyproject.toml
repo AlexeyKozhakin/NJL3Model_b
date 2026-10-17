@@ -22,3 +22,6 @@ include = ["njl3*"]
 
 [tool.pytest.ini_options]
 markers = ["slow: долгие тесты (численные интеграторы, трассировка)"]
+
+[tool.setuptools.package-data]
+njl3 = ["full/data/*.json"]
