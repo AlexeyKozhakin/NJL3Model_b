@@ -99,7 +99,7 @@ function drawMaps() {
   const lay = (title) => baseLayout(t, { xaxis: { title: { text: 'L' } }, yaxis: { title: { text: 'μ' } }, margin: { l: 52, r: 8, t: 6, b: 44 } });
   Plotly.react('map-M', [
     { type: 'heatmap', x: L, y: mu, z: logM, customdata: cd, hovertemplate: hov, colorscale: t.seq, zmin: -8, zmax: 1, zsmooth: false,
-      colorbar: { title: { text: 'log₁₀ M*' }, thickness: 12, outlinewidth: 0, tickvals: [-8, -6, -4, -2, 0], ticktext: ['≤10⁻⁸', '10⁻⁶', '10⁻⁴', '10⁻²', '1'], tickfont: { color: t.muted } } },
+      colorbar: { title: { text: 'M*' }, thickness: 12, outlinewidth: 0, tickvals: [-8, -6, -4, -2, 0], ticktext: ['≤10⁻⁸', '10⁻⁶', '10⁻⁴', '10⁻²', '1'], tickfont: { color: t.muted } } },
     ...over], lay(), CFG);
   Plotly.react('map-b', [
     { type: 'heatmap', x: L, y: mu, z: T(b), customdata: cd, hovertemplate: hov, colorscale: t.seq2, zmin: 0, zsmooth: false,
@@ -122,7 +122,7 @@ function runPoint(mu, L) {
   state.mu = mu; state.L = L; writeHash();
   $('pt-mu').value = mu; $('pt-L').value = L;
   drawMaps();
-  $('status').textContent = `Расчёт точки μ = ${mu}, L = ${L}…`;
+  $("status").textContent = `Расчёт точки μ = ${mu}, L = ${L}: глобальный минимум по всем каналам, несколько секунд…`;
   const t0 = performance.now();
   ask({ type: 'point', mu, L, g: G }, ({ result: r }) => {
     lastPoint = r;
@@ -145,7 +145,7 @@ function drawOmegaMap(r) {
   const t = tokens();
   const Mmax = Math.max(1.2, 1.4 * (r.M_star || 0));
   const bmax = Math.max(r.mu + 0.6, (r.b_star || 0) + 0.5);
-  const M = linspace(Mmax / 70, Mmax, 70), b = linspace(0, bmax, 70);
+  const M = linspace(Mmax / 60, Mmax, 60), b = linspace(0, bmax, 60);
   const z = b.map(() => new Array(M.length).fill(null));
   const draw = () => {
     const flat = z.flat().filter((v) => v !== null).map(Math.abs).sort((a, c) => a - c);

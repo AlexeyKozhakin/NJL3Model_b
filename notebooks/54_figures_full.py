@@ -88,7 +88,8 @@ def fig_maps():
     fig, axes = plt.subplots(1, 2, figsize=(12.5, 4.8))
     logM = np.clip(lnM / math.log(10), -8, 1)
     im = axes[0].pcolormesh(L, mu, logM.T, cmap='Blues', shading='auto', vmin=-8, vmax=1)
-    cb = fig.colorbar(im, ax=axes[0]); cb.set_label('log₁₀ M*')
+    cb = fig.colorbar(im, ax=axes[0], ticks=[-8, -6, -4, -2, 0]); cb.set_label('M*')
+    cb.ax.set_yticklabels(['≤10⁻⁸', '10⁻⁶', '10⁻⁴', '10⁻²', '1'])
     im = axes[1].pcolormesh(L, mu, np.nan_to_num(b).T, cmap='Oranges', shading='auto')
     cb = fig.colorbar(im, ax=axes[1]); cb.set_label('b*')
     # границы фаз
@@ -102,7 +103,7 @@ def fig_maps():
                     y = 0.5 * (mu[j] + mu[j + 1])
                     ax.plot([0.5 * (L[i] + L[max(i - 1, 0)]), 0.5 * (L[i] + L[min(i + 1, len(L) - 1)])], [y, y], 'k-', lw=0.5)
         ax.set_xlabel('L'); ax.set_ylabel('μ')
-    axes[0].set_title('M* (логарифмическая шкала)'); axes[1].set_title('b*')
+    axes[0].set_title('M*'); axes[1].set_title('b*')
     fig.suptitle('Глобальный минимум по (M, b), g = −1; линии — границы фаз')
     fig.tight_layout(); fig.savefig(os.path.join(OUT, '54_maps.png'), dpi=150); plt.close(fig)
 
