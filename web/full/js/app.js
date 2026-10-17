@@ -39,7 +39,18 @@ function baseLayout(t, extra = {}) {
 const CFG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'],
               toImageButtonOptions: { format: 'png', scale: 2, filename: 'njl3_full' } };
 
-const state = { theme: 'auto', bnd: true, asym: true, mu: 4.0, L: 2.0, zoom: 'near' };
+const state = { theme: 'auto', bnd: true, asym: true, mu: 4.0, L: 2.0, zoom: 'near', region: 'all', vmu0: 0.05, vmu1: 7, vL0: 0.1, vL1: 10 };
+// подробные карты областей (посчитаны отдельно, notebooks/53 --region)
+const REGIONS = { all: 'data/maps.json', mu25_40: 'data/maps_mu25_40.json', peaks: 'data/maps_peaks.json' };
+const mapsCache = {};
+async function loadRegion(name) {
+  if (!REGIONS[name]) name = 'all';
+  mapsCache[name] = mapsCache[name] || (await (await fetch(REGIONS[name])).json());
+  state.region = name;
+  return mapsCache[name];
+}
+const fullView = () => { [state.vmu0, state.vmu1, state.vL0, state.vL1] = [MAPS.mu[0], MAPS.mu.at(-1), MAPS.L[0], MAPS.L.at(-1)]; };
+const mapsStatus = () => `Карты: ${MAPS.mu.length} × ${MAPS.L.length} точек (μ ∈ [${MAPS.mu[0]}, ${MAPS.mu.at(-1)}], L ∈ [${MAPS.L[0]}, ${MAPS.L.at(-1)}]), порог T = ${fmtT(tempT())}${MAPS.refine ? `; у границ фаз — уточнение в ${2 ** MAPS.refine} раза, внутри фаз — интерполяция` : ''}.`;
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
   for (const k of Object.keys(state)) if (p.has(k)) {
@@ -110,7 +121,9 @@ function drawMaps() {
   }
   over.push({ type: 'scatter', mode: 'markers', x: [state.L], y: [state.mu], hoverinfo: 'skip', showlegend: false,
               marker: { symbol: 'circle-open', size: 13, color: t.ink, line: { width: 2.5, color: t.ink } } });
-  const lay = (title) => baseLayout(t, { xaxis: { title: { text: 'L' } }, yaxis: { title: { text: 'μ' } }, margin: { l: 52, r: 8, t: 6, b: 44 } });
+  // область просмотра (кнопки-пресеты и выделение мышью) — общая для обеих карт
+  const lay = (title) => baseLayout(t, { xaxis: { title: { text: 'L' }, range: [state.vL0, state.vL1] },
+    yaxis: { title: { text: 'μ' }, range: [state.vmu0, state.vmu1] }, margin: { l: 52, r: 8, t: 6, b: 44 } });
   Plotly.react('map-M', [
     zeroLayer,
     { type: 'heatmap', x: L, y: mu, z: logM, customdata: cd, hovertemplate: hov, colorscale: t.seq, zmin, zmax: 1, zsmooth: false,
@@ -280,8 +293,10 @@ async function main() {
   $('slice-zoom').value = state.zoom;
   $('slice-zoom').addEventListener('change', () => { state.zoom = $('slice-zoom').value; writeHash(); if (lastPoint) drawSlices(lastPoint); });
   try {
-    MAPS = await (await fetch('data/maps.json')).json();
-    $('status').textContent = `Карты: ${MAPS.mu.length} × ${MAPS.L.length} точек (μ ∈ [${MAPS.mu[0]}, ${MAPS.mu.at(-1)}], L ∈ [${MAPS.L[0]}, ${MAPS.L.at(-1)}]), порог T = ${fmtT(tempT())}${MAPS.refine ? `; у границ фаз — уточнение в ${2 ** MAPS.refine} раза, внутри фаз — интерполяция` : ''}.`;
+    const hadView = location.hash.includes('vmu0');
+    MAPS = await loadRegion(state.region);
+    if (!hadView) fullView();
+    $('status').textContent = mapsStatus();
     $('temp-T').textContent = fmtT(tempT());
   } catch {
     $('status').textContent = 'Не удалось загрузить карты (data/maps.json).';
@@ -290,6 +305,25 @@ async function main() {
   runPoint(state.mu, state.L);
   for (const [id, key] of [['show-bnd', 'bnd'], ['show-asym', 'asym']]) $(id).addEventListener('change', () => { state[key] = $(id).checked; writeHash(); drawMaps(); });
   $('theme').addEventListener('change', () => { state.theme = $('theme').value; writeHash(); applyTheme(); drawMaps(); if (lastPoint) { drawOmegaMap(lastPoint); drawChannel(lastPoint); drawSlices(lastPoint); } });
+  document.querySelectorAll('[data-region]').forEach((btn) => btn.addEventListener('click', async () => {
+    try { MAPS = await loadRegion(btn.dataset.region); } catch { $('status').textContent = 'Не удалось загрузить карту области.'; return; }
+    fullView(); writeHash(); drawMaps();
+    $('status').textContent = mapsStatus();
+  }));
+  // выделение мышью на одной карте — та же область на другой; двойной клик — вся область
+  let syncing = false;
+  for (const id of ['map-M', 'map-b']) $(id).on('plotly_relayout', (ev) => {
+    if (syncing) return;
+    if (ev['xaxis.autorange'] || ev['yaxis.autorange']) fullView();
+    else if ('xaxis.range[0]' in ev || 'yaxis.range[0]' in ev) {
+      if ('xaxis.range[0]' in ev) { state.vL0 = +ev['xaxis.range[0]']; state.vL1 = +ev['xaxis.range[1]']; }
+      if ('yaxis.range[0]' in ev) { state.vmu0 = +ev['yaxis.range[0]']; state.vmu1 = +ev['yaxis.range[1]']; }
+    } else return;
+    writeHash();
+    syncing = true;
+    Promise.all(['map-M', 'map-b'].map((m) => Plotly.relayout(m, { 'xaxis.range': [state.vL0, state.vL1], 'yaxis.range': [state.vmu0, state.vmu1] })))
+      .finally(() => { syncing = false; });
+  });
   for (const id of ['map-M', 'map-b']) $(id).on('plotly_click', (ev) => { const p = ev.points[0]; if (p && p.x != null && p.y != null) runPoint(+p.y.toFixed(4), +p.x.toFixed(4)); });
   $('point-form').addEventListener('submit', (e) => { e.preventDefault(); runPoint(Number($('pt-mu').value), Math.max(0.05, Number($('pt-L').value))); });
   $('dl-point').addEventListener('click', () => {

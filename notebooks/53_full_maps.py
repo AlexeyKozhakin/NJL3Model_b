@@ -14,7 +14,10 @@
 
 Выход: notebooks/output/53_full_maps.npz и (компактно) web/full/data/maps.json;
 при T > 0 — notebooks/output/53_full_maps_T<T>.npz и .json (данные приложения не трогаются).
-Запуск:  python notebooks/53_full_maps.py [--n N_MU N_L] [--T T] [--refine K]
+--region MU0 MU1 L0 L1 NAME: только эта область (подробная карта для приложения),
+выход notebooks/output/53_full_maps_<NAME>.json.
+
+Запуск:  python notebooks/53_full_maps.py [--n N_MU N_L] [--T T] [--refine K] [--region MU0 MU1 L0 L1 NAME]
 """
 
 import json
@@ -40,10 +43,15 @@ N_MU, N_L = (int(args[args.index('--n') + 1]), int(args[args.index('--n') + 2]))
 T = float(args[args.index('--T') + 1]) if '--T' in args else 0.0
 K = int(args[args.index('--refine') + 1]) if '--refine' in args else 0
 REFINE_DLNM = 1.0
+if '--region' in args:
+    _r = args[args.index('--region') + 1:args.index('--region') + 6]
+    MU_RANGE, L_RANGE, REGION = (float(_r[0]), float(_r[1])), (float(_r[2]), float(_r[3])), _r[4]
+else:
+    MU_RANGE, L_RANGE, REGION = (0.05, 7.0), (0.1, 10.0), None
 R = 2 ** K
 NF_MU, NF_L = R * (N_MU - 1) + 1, R * (N_L - 1) + 1          # итоговая (тонкая) сетка
-MU = np.linspace(0.05, 7.0, NF_MU)
-L = np.linspace(0.1, 10.0, NF_L)
+MU = np.linspace(*MU_RANGE, NF_MU)
+L = np.linspace(*L_RANGE, NF_L)
 
 
 def point(ij):
@@ -112,7 +120,7 @@ def main():
     phase = phase.astype(str)
     print(f"сетка {NF_L}×{NF_MU}: посчитано {len(res)} точек ({100 * len(res) / interp.size:.0f}%), "
           f"остальное — интерполяция", flush=True)
-    tag = (f'_T{T:g}' if T > 0 else '') + (f'_r{K}' if K else '')
+    tag = (f'_T{T:g}' if T > 0 else '') + (f'_r{K}' if K else '') + (f'_{REGION}' if REGION else '')
     np.savez(os.path.join(ROOT, 'notebooks', 'output', f'53_full_maps{tag}.npz'), mu=MU, L=L, phase=phase, M=M,
              lnM=lnM, b=b, omega=Om, asym=asym, interp=interp, T=T)
     os.makedirs(os.path.join(ROOT, 'web', 'full', 'data'), exist_ok=True)
