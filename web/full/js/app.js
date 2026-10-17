@@ -113,7 +113,11 @@ function drawMaps() {
 const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
 let job = 0, lastPoint = null;
 const pending = new Map();
-worker.onmessage = ({ data }) => { const cb = pending.get(data.job); if (cb) cb(data); };
+worker.onmessage = ({ data }) => {
+  if (data.type === 'error') { $('status').textContent = 'Ошибка расчёта: ' + data.message; return; }
+  const cb = pending.get(data.job); if (cb) cb(data);
+};
+worker.onerror = (e) => { $('status').textContent = 'Ошибка фонового потока: ' + (e.message || e.filename || 'неизвестная'); };
 function ask(msg, cb) { const id = ++job; pending.set(id, cb); worker.postMessage({ ...msg, job: id }); return id; }
 
 function linspace(a, b, n) { return Array.from({ length: n }, (_, i) => a + (b - a) * i / (n - 1)); }
@@ -179,8 +183,10 @@ function drawChannel(r) {
   const C = ch.n === 0 ? 1 : 2;
   ask({ type: 'channel', mu: r.mu, L: r.L, g: G, S: ch.S, C, lnM }, ({ num, as, asy }) => {
     const M = lnM.map(Math.exp);
+    // ниже M ~ 1e-6 численная разность Ω тонет в округлении (~1e-14): показываем только надёжную часть
+    const numSafe = num.map((v, i) => (M[i] >= 1e-6 ? v : null));
     Plotly.react('chart-chan', [
-      { type: 'scatter', mode: 'lines', x: M, y: num, name: 'численно', line: { color: t.s1, width: 2 },
+      { type: 'scatter', mode: 'lines', x: M, y: numSafe, name: 'численно', line: { color: t.s1, width: 2 },
         hovertemplate: 'M = %{x:.3e}<br>%{y:.5f}<extra>численно</extra>' },
       { type: 'scatter', mode: 'lines', x: M, y: as, name: 'A − c ln(1/M)', line: { color: t.s2, width: 2, dash: 'dash' },
         hovertemplate: 'M = %{x:.3e}<br>%{y:.5f}<extra>асимптотика</extra>' },

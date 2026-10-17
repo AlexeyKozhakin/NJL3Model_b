@@ -4,8 +4,16 @@ import { init, findMinimum, omegaRel, channelAsymptotics } from './njl3full.js';
 const ready = fetch(new URL('../data/s_table.json', import.meta.url)).then((r) => r.json()).then(init);
 
 self.onmessage = async ({ data }) => {
-  await ready;
   const { type, job } = data;
+  try {
+    await ready;
+    handle(type, job, data);
+  } catch (e) {
+    self.postMessage({ type: 'error', job, message: String(e && e.stack || e) });
+  }
+};
+
+function handle(type, job, data) {
   if (type === 'point') {
     self.postMessage({ type, job, result: findMinimum(data.mu, data.L, data.g) });
   } else if (type === 'omega-map') {
@@ -24,4 +32,4 @@ self.onmessage = async ({ data }) => {
     const as = lnM.map((lm) => asy.A + asy.c * lm);
     self.postMessage({ type, job, num, as, asy });
   }
-};
+}
