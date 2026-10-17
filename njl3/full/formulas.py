@@ -113,7 +113,12 @@ def dU(M, b):
 
 
 def omega_L(M, b, L):
-    """Компактификационный вклад Ω_L(M, b)."""
+    """Компактификационный вклад Ω_L(M, b) (скаляр; см. omega_L_vec)."""
+    return float(omega_L_vec(M, b, L)[0])
+
+
+def _omega_L_scalar_old(M, b, L):
+    """Прежняя скалярная реализация (для сверки)."""
     p_b = math.sqrt(b * b - M * M) if b > M else 0.0          # излом |E − b|
     E_hi = b + 64.0 / L                                       # дальше s(L|A|) = 0
     p_hi = math.sqrt(max(E_hi * E_hi - M * M, 0.0))
@@ -186,14 +191,8 @@ def _mode_n(mu, b, M, k):
 
 
 def omega_muL(M, b, mu, L):
-    """Термический вклад Ω_μL(M, b)."""
-    if mu <= 0.0:
-        return 0.0
-    n_max = int(math.floor(L * mu / (2 * PI)))
-    tot = _mode0(mu, b, M)
-    for n in range(1, n_max + 1):
-        tot += 2.0 * _mode_n(mu, b, M, 2 * PI * n / L)
-    return -tot / (PI * L)
+    """Термический вклад Ω_μL(M, b) (скаляр; см. omega_muL_vec)."""
+    return float(omega_muL_vec(M, b, mu, L)[0])
 
 
 def omega_rel(M, b, mu, L, g):
@@ -231,7 +230,7 @@ def omega_L_vec(M, b, L):
     p_hi = np.sqrt(np.clip(E_hi * E_hi - M * M, 0.0, None))
     c = np.minimum(p_b + 4.0 / L, p_hi)
     # левая сторона [0, p_b] к p_b, правая [p_b, c] к p_b, хвост [c, p_hi] равными кусками
-    pL = p_b - p_b * _GT_X;  wL = p_b * _GT_W
+    pL = p_b * _TS_X;  wL = p_b * _TS_W
     pR = p_b + (c - p_b) * _GT_X;  wR = (c - p_b) * _GT_W
     pT = c + (p_hi - c) * _CH_X;  wT = (p_hi - c) * _CH_W
     p = np.concatenate([pL, pR, pT], axis=1)
@@ -265,15 +264,23 @@ def _mode0_vec(mu, b, M):
     return tot
 
 
-_G32X, _G32W = _GL32
+def _two_sided_template(levels, rule):
+    """Узлы/веса на [0, 1], геометрически сгущённые к обоим концам."""
+    gx, gw = _graded_template(levels, rule)                 # на [0, 1] к 0
+    return (np.concatenate([0.5 * gx, 1.0 - 0.5 * gx]), np.concatenate([0.5 * gw, 0.5 * gw]))
+
+
+_TS_X, _TS_W = _two_sided_template(20, _GL16)
 
 
 def _seg_int(a, c, M, b_sgn, k, mu):
-    """Σ по точкам ∫_a^c (mu − sqrt((E + b_sgn)² + k²)) dp, a, c — столбцы (N, 1)."""
-    h = 0.5 * (c - a)
-    p = h * _G32X + 0.5 * (a + c)
+    """Σ по точкам ∫_a^c (mu − sqrt((E + b_sgn)² + k²)) dp, a, c — столбцы (N, 1).
+    Узлы сгущены к обоим концам: при малых M у подынтегрального выражения особенность
+    масштаба M около p = 0 (касание поверхности Ферми при b ≈ S_n)."""
+    h = c - a
+    p = a + h * _TS_X
     A = np.sqrt(M * M + p * p) + b_sgn
-    return np.sum(h * _G32W * (mu - np.sqrt(A * A + k * k)), axis=1)
+    return np.sum(h * _TS_W * (mu - np.sqrt(A * A + k * k)), axis=1)
 
 
 def omega_muL_vec(M, b, mu, L):
