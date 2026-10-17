@@ -141,6 +141,10 @@ def find_minimum(mu, L, g):
         margin = 0.0 if c['asym'] else OMEGA_NOISE
         if c['omega'] < best['omega'] - margin:
             best = c
+    if best['phase'][0] == 'B':
+        # номер фазы — ближайший порог к найденному b* (поиск в канале n может прийти в яму соседнего порога)
+        n_near, _, _ = min(thresholds(mu, L), key=lambda q: abs(q[1] - best['b']))
+        best = dict(best, phase=f'B{n_near}')
     if best['phase'] == 'T':                         # формально M = 0 при b = 0: b не определено
         best = dict(best, b=float('nan'))
     return FullResult(mu=mu, L=L, g=g, phase=best['phase'], M_star=best['M'], ln_M_star=best['lnM'], b_star=best['b'],
