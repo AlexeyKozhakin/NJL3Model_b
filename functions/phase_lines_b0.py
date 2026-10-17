@@ -85,17 +85,36 @@ def mu_VT(L, g):
     return brentq(f, 1e-12, hi, xtol=1e-15, rtol=1e-15)
 
 
+def peak(n, g):
+    """
+    Пик n: пересечение линии G0 = 0 с порогом моды mu = 2 pi n / L — явно.
+    На пороге mu/k_m = n/m, поэтому G0 = 0 даёт
+        L_n = -(2 g / pi) [ ln(4 pi n) + 2 sum_{m=1}^{n-1} arccosh(n/m) ],  mu_n = 2 pi n / L_n.
+    При n -> ∞ (g = -1): mu_n = pi + 2√2 |zeta(-1/2)| n^{-3/2} + O(n^{-5/2})
+    (численно, publication/notes/2026-10-17_phase-lines-b0.md).
+    """
+    s = math.log(4.0 * math.pi * n) + 2.0 * sum(math.acosh(n / m) for m in range(1, n))
+    L = -2.0 * g / math.pi * s
+    return L, 2.0 * math.pi * n / L
+
+
 def tricritical_points(g, L_lo, L_hi, n_scan=4000):
-    """Точки mu = mu_s(L), где G2(mu_s(L), L) = 0."""
+    """
+    Точки mu = mu_s(L), где G2(mu_s(L), L) = 0 (непрерывная смена знака).
+    Смены знака на порогах мод (G2 скачком -> -inf, это пики, а не трикритические
+    точки) отбрасываются: на концах шага должно совпадать число заполненных мод.
+    """
     Ls = np.linspace(L_lo, L_hi, n_scan)
+    mus = [mu_stability(L, g) for L in Ls]
+    vals = np.array([G2(mu, L) for mu, L in zip(mus, Ls)])
+    nmax = [len(an._modes(mu, L)) for mu, L in zip(mus, Ls)]
     h = lambda L: G2(mu_stability(L, g), L)
-    vals = np.array([h(L) for L in Ls])
     pts = []
     for i in np.nonzero(np.sign(vals[:-1]) * np.sign(vals[1:]) < 0)[0]:
-        # пропускаем разрывы G2 (пороги мод: G2 -> -inf при mu_s -> k_n)
-        if np.isfinite(vals[i]) and np.isfinite(vals[i + 1]) and abs(vals[i] - vals[i + 1]) < 10.0:
-            Lt = brentq(h, Ls[i], Ls[i + 1], xtol=1e-14)
-            pts.append((Lt, mu_stability(Lt, g)))
+        if nmax[i] != nmax[i + 1] or not (np.isfinite(vals[i]) and np.isfinite(vals[i + 1])):
+            continue
+        Lt = brentq(h, Ls[i], Ls[i + 1], xtol=1e-14)
+        pts.append((Lt, mu_stability(Lt, g)))
     return pts
 
 

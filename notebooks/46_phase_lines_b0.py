@@ -16,7 +16,7 @@
     notebooks/output/46_phase_lines.json   — линии и особые точки
     notebooks/output/46_phase_lines_b0.png — линии поверх диаграммы M*(L, mu) из 43
 
-Запуск:  python notebooks/46_phase_lines_b0.py [--quick]
+Запуск:  python notebooks/46_phase_lines_b0.py [--quick | --plot-only [--refresh-special]]
 """
 
 import json
@@ -60,6 +60,118 @@ def refine_L(La, Lb, pa, tol=1e-8):
         else:
             Lb = c
     return 0.5 * (La + Lb)
+
+
+LINE_STYLE = {
+    'V-T':  dict(color='k', lw=2.0),
+    'V-I':  dict(color='tab:orange', lw=2.0),
+    'I-I':  dict(color='tab:blue', lw=1.6),
+    'I-T1': dict(color='k', lw=2.0),
+    'I-T2': dict(color='r', lw=2.4),
+}
+
+
+def _style_key(key, order):
+    a, b = key.split('-')
+    if a == 'V':
+        return 'V-T' if b == 'T' else 'V-I'
+    if b == 'T':
+        return f'I-T{order}'
+    return 'I-I'
+
+
+def plot_lines(out):
+    """Линии переходов: вся область и увеличение полосы mu ∈ [2.5, 4]."""
+    L_all = sorted({r['L'] for v in out['lines'].values() for r in v})
+    dL = np.median(np.diff(L_all))
+    fig, axes = plt.subplots(2, 1, figsize=(11, 11), gridspec_kw=dict(height_ratios=[1, 1.15]))
+    for ax, (ylo, yhi) in zip(axes, [out['mu_range'], (2.5, 4.0)]):
+        for key, pts in out['lines'].items():
+            for order in (1, 2):
+                sel = sorted([p for p in pts if p['order'] == order], key=lambda p: p['L'])
+                if not sel:
+                    continue
+                Ls = np.array([p['L'] for p in sel]); ms = np.array([p['mu'] for p in sel])
+                breaks = np.nonzero(np.diff(Ls) > 2.5 * dL)[0] + 1
+                for seg in np.split(np.arange(len(Ls)), breaks):
+                    ax.plot(Ls[seg], ms[seg], **LINE_STYLE[_style_key(key, order)])
+        Lf = np.linspace(*out['L_range'], 600)
+        for n in range(1, 12):
+            ax.plot(Lf, 2 * np.pi * n / Lf, color='gray', lw=0.5, ls=':')
+        ax.axhline(np.pi, color='gray', lw=0.6, ls='--')
+        sp = out['special']
+        for kind, (mk, col, ms_, lab) in {
+                'critical_end': ('o', 'cyan', 8, 'критическая концевая точка (рождение I_n)'),
+                'peak': ('^', 'orange', 8, 'пик: μ = 2πn/L'),
+                'tricritical': ('*', 'gold', 15, 'трикритическая точка')}.items():
+            pts = [x for x in sp if x['kind'] == kind and x.get('mu') is not None
+                   and x.get('on_phase_boundary', True)]
+            if pts:
+                ax.plot([x['L'] for x in pts], [x['mu'] for x in pts], mk, color=col, ms=ms_,
+                        mec='k', mew=0.7, ls='none', label=lab, zorder=5)
+        ax.set_xlim(*out['L_range']); ax.set_ylim(ylo, yhi)
+        ax.set_xlabel('L'); ax.set_ylabel('μ')
+        ax.grid(alpha=0.2)
+    ax0, ax1 = axes
+    for lab, (x, y) in {'V\n(вакуум, M* = M_vac(L))': (6.0, 1.5), 'T  (M* = 0)': (6.0, 5.5)}.items():
+        ax0.text(x, y, lab, ha='center', fontsize=12)
+    # подписи подфаз I_n в увеличении: между линией I_{n-1}–I_n (или V–I0) и границей с T
+    ce = sorted([x for x in out['special'] if x['kind'] == 'critical_end'], key=lambda x: x['L'])
+    pk = sorted([x for x in out['special'] if x['kind'] == 'peak'], key=lambda x: x['L'])
+
+    def _line_mu(keys, L):
+        pts = sorted([r for k in keys for r in out['lines'].get(k, [])], key=lambda r: r['L'])
+        Ls = np.array([r['L'] for r in pts]); ms = np.array([r['mu'] for r in pts])
+        return np.interp(L, Ls, ms) if len(Ls) else np.nan
+
+    T_keys = [k for k in out['lines'] if k.endswith('-T')]
+    for n, x in enumerate(ce):
+        L_lab = x['L'] + 0.75 * (pk[n]['L'] - x['L']) if n < len(pk) else x['L'] + 0.3
+        lower = 'V-I0' if n == 0 else f'I{n - 1}-I{n}'
+        mu_lab = 0.5 * (_line_mu([lower], L_lab) + _line_mu(T_keys, L_lab))
+        ax1.text(L_lab, mu_lab, f'I{n}', fontsize=11, color='tab:blue', ha='center', va='center',
+                 bbox=dict(boxstyle='round,pad=0.1', fc='w', ec='none', alpha=0.7))
+    ax1.text(0.5, 2.6, 'V', fontsize=13); ax1.text(6.0, 3.7, 'T', fontsize=13)
+    handles = [plt.Line2D([], [], **LINE_STYLE[k]) for k in ('V-T', 'V-I', 'I-I', 'I-T1', 'I-T2')]
+    labels = ['V–T (1-й род)', 'V–I₀ (1-й род)', 'I_n–I_{n+1} (1-й род)', 'I_n–T (1-й род)', 'I_n–T (2-й род)']
+    h2, l2 = ax1.get_legend_handles_labels()
+    ax1.legend(handles + h2 + [plt.Line2D([], [], color='gray', lw=0.5, ls=':')],
+               labels + l2 + ['пороги мод μ = 2πn/L'], fontsize=8, loc='upper right', framealpha=0.95)
+    ax0.set_title('Фазовая диаграмма при b = 0, g = −1: линии переходов (точность ~1e-12)')
+    ax1.set_title('Увеличение: каскад подфаз I₀, I₁, … по числу заполненных KK-мод')
+    fig.tight_layout()
+    fig.savefig(os.path.join(OUT_DIR, '46_phase_lines_b0.png'), dpi=130)
+    plt.close(fig)
+
+
+def refresh_special(out):
+    """Трикритические точки (исправленный поиск) и пики по явной формуле."""
+    keep = [x for x in out['special'] if x['kind'] not in ('tricritical', 'peak')]
+    for Lt, mut in pl.tricritical_points(G, *out['L_range']):
+        tr = _trace(Lt)
+        on_line = any('T' in (r['frm'], r['to']) and abs(r['mu'] - mut) < 1e-6 for r in tr)
+        keep.append(dict(kind='tricritical', L=Lt, mu=mut, on_phase_boundary=bool(on_line)))
+    n = 1
+    while True:
+        Ln, mun = pl.peak(n, G)
+        if Ln > out['L_range'][1]:
+            break
+        keep.append(dict(kind='peak', n=n, L=Ln, mu=mun, exact=True))
+        n += 1
+    out['special'] = sorted(keep, key=lambda x: x['L'])
+    return out
+
+
+def add_critical_end_points(out):
+    """pattern_change -> critical_end с mu: точка, где рождается подфаза I_n
+    (линия 2-го рода I_n–T упирается в линию 1-го рода)."""
+    for x in out['special']:
+        if x['kind'] == 'pattern_change' and x['before'] and x['after'] and len(x['after']) > len(x['before']):
+            tr = _trace(x['L'] + 1e-6)
+            muT = [r['mu'] for r in tr if r['to'] == 'T']
+            x['kind'] = 'critical_end'
+            x['mu'] = muT[0] if muT else None
+    return out
 
 
 def main():
@@ -125,47 +237,25 @@ def main():
                lines={k: [dict(L=r['L'], mu=r['mu'], order=r['order'], M_left=r['M_left'], M_right=r['M_right'])
                           for r in v] for k, v in lines.items()},
                special=special)
+    out = refresh_special(add_critical_end_points(out))
     with open(os.path.join(OUT_DIR, '46_phase_lines.json'), 'w') as f:
         json.dump(out, f, indent=1, default=float)
 
-    # --- рисунок ------------------------------------------------------------------
-    fig, ax = plt.subplots(figsize=(10, 6.5))
-    bg = os.path.join(OUT_DIR, '43_data.npz')
-    if os.path.exists(bg):
-        d = np.load(bg)
-        im = ax.pcolormesh(d['L'], d['mu'], d['M_star'].T, cmap='viridis', shading='auto', vmax=4, alpha=0.85)
-        fig.colorbar(im, ax=ax, label='M*', extend='max')
-    style = {1: dict(color='w', lw=2.2), 2: dict(color='r', lw=2.2)}
-    for key, pts in lines.items():
-        for order in (1, 2):
-            sel = sorted([p for p in pts if p['order'] == order], key=lambda p: p['L'])
-            if not sel:
-                continue
-            Ls = np.array([p['L'] for p in sel]); ms = np.array([p['mu'] for p in sel])
-            breaks = np.nonzero(np.diff(Ls) > 2.5 * (L_GRID[1] - L_GRID[0]))[0] + 1
-            for seg in np.split(np.arange(len(Ls)), breaks):
-                ax.plot(Ls[seg], ms[seg], **style[order])
-    for n in range(1, 12):
-        Lf = np.linspace(L_GRID[0], L_GRID[-1], 400)
-        ax.plot(Lf, 2 * np.pi * n / Lf, color='gray', lw=0.5, ls=':')
-    marks = {'tricritical': ('*', 'gold', 14), 'pattern_change': ('o', 'cyan', 7), 'peak': ('^', 'orange', 7)}
-    for kind, (mk, col, ms_) in marks.items():
-        pts = [s for s in special if s['kind'] == kind and s.get('mu') is not None]
-        if pts:
-            ax.plot([s['L'] for s in pts], [s['mu'] for s in pts], mk, color=col, ms=ms_,
-                    mec='k', mew=0.6, ls='none', label=kind)
-    ax.plot([], [], color='w', lw=2.2, label='1-й род')
-    ax.plot([], [], color='r', lw=2.2, label='2-й род')
-    ax.plot([], [], color='gray', lw=0.5, ls=':', label='μ = 2πn/L')
-    ax.set_xlim(L_GRID[0], L_GRID[-1]); ax.set_ylim(MU_LO, MU_HI)
-    ax.set_xlabel('L'); ax.set_ylabel('μ')
-    ax.set_title('Линии переходов при b = 0, g = −1 (решения уравнений, точность 1e-11)')
-    ax.legend(loc='upper right', fontsize=8, framealpha=0.9)
-    fig.tight_layout()
-    fig.savefig(os.path.join(OUT_DIR, '46_phase_lines_b0.png'), dpi=130)
-    plt.close(fig)
+    plot_lines(out)
     print(f"\nГотово за {time.time() - t0:.1f}s")
 
 
 if __name__ == '__main__':
-    main()
+    if '--plot-only' in sys.argv:
+        path = os.path.join(OUT_DIR, '46_phase_lines.json')
+        with open(path) as f:
+            out = json.load(f)
+        if any(x['kind'] == 'pattern_change' for x in out['special']):
+            out = refresh_special(add_critical_end_points(out))
+        if '--refresh-special' in sys.argv:
+            out = refresh_special(out)
+        with open(path, 'w') as f:
+            json.dump(out, f, indent=1, default=float)
+        plot_lines(out)
+    else:
+        main()
