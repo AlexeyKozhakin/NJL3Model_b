@@ -135,10 +135,16 @@ def G_total(M, b, mu, L, g):
     return 1.0 / g + b / 2.0 + G_L(M, b, L) + G_muL(M, b, mu, L)
 
 
-def G_muL_mp(M, b, mu, L, dps=40):
-    """G_μL в mpmath (то же разбиение, adaptive quad)."""
+def G_muL_mp(M, b, mu, L, dps=40, n_thr=None):
+    """G_μL в mpmath (то же разбиение, adaptive quad).
+
+    n_thr: если задан, b = S_{n_thr} вычисляется в mpmath. При M ~ 1e-20 порог в double
+    (ошибка ~1e-16) даёт t = (b − S)/M ~ 1e4 вместо 0 — другая точка кривой h(t).
+    """
     with mp.workdps(dps):
         M, b, mu, L = mp.mpf(M), mp.mpf(b), mp.mpf(mu), mp.mpf(L)
+        if n_thr is not None:
+            b = mp.sqrt(mu * mu - (2 * mp.pi * n_thr / L)**2)
         pE = lambda E: mp.sqrt(max(E * E - M * M, 0))
         tot = mp.mpf(0)
         nmax = int(mp.floor(L * mu / (2 * mp.pi)))
@@ -178,10 +184,10 @@ def main():
             M0, h = 1e-2, 1e-6
             fd = (F.omega_rel(M0 + h, S, mu, L, G) - F.omega_rel(M0 - h, S, mu, L, G)) / (2 * h) / M0
             print(f"   контроль: G(1e-2) = {G_total(M0, S, mu, L, G):+.8f}, конечные разности Ω: {fd:+.8f}")
-            # контроль 2: G_μL в mpmath
-            for M in (1e-6, 1e-20):
+            # контроль 2: G_μL в mpmath (порог — в точности mpmath, см. G_muL_mp)
+            for M in (1e-6, 1e-20, 1e-30):
                 d = G_muL(M, S, mu, L)
-                m = float(G_muL_mp(M, S, mu, L))
+                m = float(G_muL_mp(M, S, mu, L, n_thr=n))
                 print(f"   контроль mpmath: G_μL(M={M:.0e}) double {d:+.12f}, mpmath {m:+.12f}, Δ = {d - m:.1e}")
 
 
