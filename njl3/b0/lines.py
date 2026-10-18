@@ -1,18 +1,18 @@
 """
-Линии фазовых переходов, особые точки и карты фазовой диаграммы при b = 0.
+Phase-transition lines, special points and maps of the phase diagram at b = 0.
 
-Аналитические линии:
-    mu_s(L)  — граница устойчивости M = 0: G0(mu_s, L) = 0 (G0 строго растёт по mu);
-               на ней переход 2-го рода, если G2 > 0;
-    mu_VT(L) — переход вакуум–тривиальная фаза: Omega_muL(0; mu, L) = W(L);
-    пики     — mu_s(L) ∩ (mu = 2 pi n / L), явно:
+Analytic lines:
+    mu_s(L)  — stability edge of M = 0: G0(mu_s, L) = 0 (G0 is strictly increasing in mu);
+               the transition across it is second order if G2 > 0;
+    mu_VT(L) — vacuum–trivial transition: Omega_muL(0; mu, L) = W(L);
+    peaks    — mu_s(L) ∩ (mu = 2 pi n / L), explicitly:
                L_n = (2|g|/pi) [ln(4 pi n) + 2 sum_{m=1}^{n-1} arccosh(n/m)],  mu_n = 2 pi n / L_n.
 
-Трассировка: при фиксированном L скан по mu гарантированным минимизатором, каждая
-смена фазы уточняется бисекцией; несколько смен в одном шаге ищутся
-последовательно. Род перехода I–T: 2-й, если смена совпадает с mu_s(L) и G2 > 0.
+Tracing: at fixed L, a scan in mu with the certified minimiser; every phase change is
+refined by bisection, and several changes within one step are found one after another.
+Order of an I–T transition: second if the change coincides with mu_s(L) and G2 > 0.
 
-Вывод — в готовящейся статье.
+The derivation is given in the accompanying paper.
 """
 
 import math
@@ -27,11 +27,11 @@ from njl3.b0.minimize import M_vacuum, find_minimum, phase_at, phase_label
 
 
 # ==============================================================================
-# Аналитические линии и точки
+# Analytic lines and points
 # ==============================================================================
 
 def mu_stability(L, g, mu_max=50.0):
-    """mu_s(L): единственный корень G0(mu, L) = 0; None, если корня нет до mu_max."""
+    """mu_s(L): the unique root of G0(mu, L) = 0; None if there is no root below mu_max."""
     f = lambda mu: F.gap_G0(mu, L, g)
     lo, hi = 1e-12, 1.0
     while f(hi) < 0.0:
@@ -43,9 +43,9 @@ def mu_stability(L, g, mu_max=50.0):
 
 def mu_VT(L, g):
     """
-    Решение Omega(M_vac) = Omega(0): Omega(M_vac) от mu не зависит, условие —
-    Omega_muL(0; mu, L) = W(L), левая часть строго убывает по mu.
-    Это граница фаз, только если фаза I не глубже (проверяет трассировка).
+    Solution of Omega(M_vac) = Omega(0). Omega(M_vac) does not depend on mu, so the condition
+    is Omega_muL(0; mu, L) = W(L), whose left-hand side is strictly decreasing in mu.
+    It is a phase boundary only if no I phase is deeper (checked by the tracing).
     """
     Mv = M_vacuum(L, g)
     W = Mv**2 / (2 * g) + F.dU(Mv) + F.omega_L(Mv, L) - F.omega_L(0.0, L)
@@ -58,7 +58,7 @@ def mu_VT(L, g):
 
 def peak(n, g):
     """
-    Пик n (явно): (L_n, mu_n). При n -> ∞:
+    Peak n (explicit): (L_n, mu_n). As n -> ∞:
     mu_n = (pi/|g|) [1 - (2√2 zeta(-1/2)/pi) n^{-3/2} + O(n^{-5/2})].
     """
     s = math.log(4.0 * math.pi * n) + 2.0 * sum(math.acosh(n / m) for m in range(1, n))
@@ -67,7 +67,7 @@ def peak(n, g):
 
 
 def peaks(g, L_max):
-    """Все пики с L_n ≤ L_max: список (n, L_n, mu_n)."""
+    """All peaks with L_n ≤ L_max: list of (n, L_n, mu_n)."""
     out, n = [], 1
     while True:
         L, mu = peak(n, g)
@@ -79,9 +79,9 @@ def peaks(g, L_max):
 
 def tricritical_points(g, L_lo, L_hi, n_scan=4000):
     """
-    Точки mu = mu_s(L), где G2 = 0 непрерывно (скачки G2 -> -inf на порогах мод —
-    это пики, они отбрасываются). Лежат ли точки на границе фаз, проверяет
-    трассировка (при g = -1 на L ∈ [0.1, 10] — нет).
+    Points on mu = mu_s(L) where G2 crosses zero continuously (the jumps G2 -> -inf at mode
+    thresholds are peaks and are discarded). Whether such points lie on a phase boundary is
+    checked by the tracing (for g = -1 and L ∈ [0.1, 10] they do not).
     """
     Ls = np.linspace(L_lo, L_hi, n_scan)
     mus = [mu_stability(L, g) for L in Ls]
@@ -98,7 +98,7 @@ def tricritical_points(g, L_lo, L_hi, n_scan=4000):
 
 
 # ==============================================================================
-# Трассировка при фиксированном L
+# Tracing at fixed L
 # ==============================================================================
 
 def _bisect_switch(a, la, b, L, g, tol):
@@ -112,7 +112,7 @@ def _bisect_switch(a, la, b, L, g, tol):
 
 
 def _order(L, g, mu_c, frm, to):
-    """2-й род только для I–T на линии mu_s(L) с G2 > 0; остальное — 1-й."""
+    """Second order only for I–T on the line mu_s(L) with G2 > 0; everything else is first order."""
     if 'T' in (frm, to) and (frm.startswith('I') or to.startswith('I')):
         mu_s = mu_stability(L, g)
         if mu_s is not None and abs(mu_c - mu_s) < 1e-7 and F.G2(mu_s, L) > 0.0:
@@ -122,9 +122,9 @@ def _order(L, g, mu_c, frm, to):
 
 def trace_L(L, g, mu_lo=0.05, mu_hi=7.0, n_mu=400, tol=1e-12, eps=1e-9):
     """
-    Все смены фазы по mu при фиксированном L: список словарей
-    {L, mu, frm, to, order, M_left, M_right}. Переходы туда-обратно внутри одного
-    шага скана (A→B→A) не видны — ограничение шага (mu_hi - mu_lo)/(n_mu - 1).
+    All phase changes in mu at fixed L: a list of dicts
+    {L, mu, frm, to, order, M_left, M_right}. Back-and-forth changes within one scan step
+    (A→B→A) are not seen — a limitation of the step (mu_hi - mu_lo)/(n_mu - 1).
     """
     mus = np.linspace(mu_lo, mu_hi, n_mu)
     labels = [phase_at(mu, L, g)[0] for mu in mus]
@@ -157,14 +157,14 @@ def _refine_pattern_change(La, Lb, pa, g, mu_lo, mu_hi, n_mu, tol=1e-8):
 
 def trace_lines(L_grid, g, mu_lo=0.05, mu_hi=7.0, n_mu=400, jobs=None, special=True):
     """
-    Линии переходов на сетке L и особые точки.
+    Transition lines on an L grid, and special points.
 
-    Возвращает словарь (формат JSON):
+    Returns a dict (JSON-serialisable):
         g, mu_range, L_range,
-        lines:   {"V-T": [...], "I0-T": [...], ...}  точки {L, mu, order, M_left, M_right},
+        lines:   {"V-T": [...], "I0-T": [...], ...}  points {L, mu, order, M_left, M_right},
         special: [{kind: "peak" | "critical_end" | "tricritical", L, mu, ...}].
-    critical_end — точка, где рождается подфаза I_n (линия 2-го рода упирается в
-    линию 1-го рода); находится бисекцией по L до 1e-8.
+    critical_end — the point where sub-phase I_n is born (a second-order line ends on a
+    first-order line); located by bisection in L to 1e-8.
     """
     L_grid = np.asarray(L_grid, dtype=float)
     tr = partial(trace_L, g=g, mu_lo=mu_lo, mu_hi=mu_hi, n_mu=n_mu)
@@ -194,7 +194,7 @@ def trace_lines(L_grid, g, mu_lo=0.05, mu_hi=7.0, n_mu=400, jobs=None, special=T
     jobs_ce = []
     for i in range(len(L_grid) - 1):
         if pats[i] and len(pats[i + 1]) > len(pats[i]):
-            # скан только в окне вокруг переходов (с тем же шагом по mu)
+            # scan only in a window around the transitions (same step in mu)
             mus = [r['mu'] for r in traces[i] + traces[i + 1]]
             lo, hi = max(mu_lo, min(mus) - 0.2), min(mu_hi, max(mus) + 0.2)
             n_w = max(3, int(round((hi - lo) / step)) + 1)
@@ -212,7 +212,7 @@ def trace_lines(L_grid, g, mu_lo=0.05, mu_hi=7.0, n_mu=400, jobs=None, special=T
 
 
 # ==============================================================================
-# Карта M*(mu, L)
+# Map M*(mu, L)
 # ==============================================================================
 
 def _grid_row(L, mu_grid, g):
@@ -225,8 +225,8 @@ def _grid_row(L, mu_grid, g):
 
 def compute_grid(mu_grid, L_grid, g, jobs=None):
     """
-    Карта глобального минимума на сетке. Возвращает словарь массивов формы
-    (len(L_grid), len(mu_grid)): M_star, omega_star, phase (строки), n_minima.
+    Map of the global minimum on a grid. Returns a dict of arrays of shape
+    (len(L_grid), len(mu_grid)): M_star, omega_star, phase (strings), n_minima.
     """
     mu_grid = np.asarray(mu_grid, dtype=float)
     L_grid = np.asarray(L_grid, dtype=float)

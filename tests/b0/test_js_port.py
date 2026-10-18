@@ -1,4 +1,4 @@
-"""JS-ядро веб-приложения (web/b0/js/njl3b0.js) совпадает с Python-пакетом njl3.b0."""
+"""The JS core of the web app (web/b0/js/njl3b0.js) agrees with the Python package njl3.b0."""
 
 import json
 import math
@@ -41,7 +41,7 @@ def _golden(n_fun=400, n_pts=200, seed=11):
     return dict(g=G_, functions=functions, points=points, vacuum=vacuum, peaks=peaks)
 
 
-@pytest.mark.skipif(shutil.which('node') is None, reason='нужен Node.js')
+@pytest.mark.skipif(shutil.which('node') is None, reason='needs Node.js')
 def test_js_port_matches_python(tmp_path):
     path = tmp_path / 'golden.json'
     path.write_text(json.dumps(_golden()))

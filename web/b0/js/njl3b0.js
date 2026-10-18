@@ -1,20 +1,20 @@
-// njl3b0.js — фазовая диаграмма NJL3 на R²×S¹ при b = 0, phi = 0 (порт njl3/b0 на JavaScript).
+// njl3b0.js — phase diagram of NJL3 on R²×S¹ at b = 0, phi = 0 (JavaScript port of njl3/b0).
 //
-// Обозначения: k_n = 2πn/L, m_n = sqrt(M² + k_n²), P_n = sqrt(mu² − m_n²),
-// S_n = sqrt(mu² − k_n²) (порог моды n по M), C_0 = 1, C_{n≥1} = 2.
+// Notation: k_n = 2πn/L, m_n = sqrt(M² + k_n²), P_n = sqrt(mu² − m_n²),
+// S_n = sqrt(mu² − k_n²) (threshold of mode n in M), C_0 = 1, C_{n≥1} = 2.
 //
 //   G(M)  = 1/g + M/π + (2/(πL)) [ln(1 − e^{−LM}) + Σ_{m_n<mu} C_n arccosh(mu/m_n)],  dΩ/dM = M·G
 //   G(0⁺) = 1/g + (2/(πL)) [ln(2 mu L) + 2 Σ_{n=1}^{n_max} arccosh(mu/k_n)]
 //   Ω(M) − Ω(0) = ∫_0^M m G(m) dm
 //
-// Гарантированный поиск корней: на [0, mu] G = 1/g + A(M) + B(M), A возрастает, B убывает,
-// откуда вилка 1/g + A(p) + B(q) ≤ G ≤ 1/g + A(q) + B(p); на [mu, ∞) G возрастает.
-// Эталон — Python-пакет njl3.b0.
+// Certified root search: on [0, mu] G = 1/g + A(M) + B(M), A increasing, B decreasing,
+// hence the bounds 1/g + A(p) + B(q) ≤ G ≤ 1/g + A(q) + B(p); on [mu, ∞) G is increasing.
+// Reference implementation: the Python package njl3.b0.
 
 const PI = Math.PI;
 
 // ---------------------------------------------------------------------------
-// Моды
+// Modes
 // ---------------------------------------------------------------------------
 
 export function modes(mu, L) {
@@ -34,7 +34,7 @@ export function filledMode(M, mu, L) {
 }
 
 // ---------------------------------------------------------------------------
-// Уравнение щели (устойчивая форма)
+// Gap equation (stable form)
 // ---------------------------------------------------------------------------
 
 export function gapG0(mu, L, g) {
@@ -92,14 +92,14 @@ function partB(M, mu, L) {
 }
 
 // ---------------------------------------------------------------------------
-// Метод Брента
+// Brent's method
 // ---------------------------------------------------------------------------
 
 export function brent(f, a, b, xtol = 1e-15, maxIter = 200) {
   let fa = f(a), fb = f(b);
   if (fa === 0) return a;
   if (fb === 0) return b;
-  if (fa * fb > 0) throw new Error('brent: нет смены знака');
+  if (fa * fb > 0) throw new Error('brent: no sign change');
   let c = a, fc = fa, d = b - a, e = d;
   for (let it = 0; it < maxIter; it++) {
     if (fb * fc > 0) { c = a; fc = fa; d = b - a; e = d; }
@@ -128,7 +128,7 @@ export function brent(f, a, b, xtol = 1e-15, maxIter = 200) {
 }
 
 // ---------------------------------------------------------------------------
-// Гарантированное отделение корней G
+// Certified isolation of the roots of G
 // ---------------------------------------------------------------------------
 
 export function isolateRoots(mu, L, g, tol = 1e-10) {
@@ -153,7 +153,7 @@ export function isolateRoots(mu, L, g, tol = 1e-10) {
       else merged.push([p, q]);
     }
     for (const [p, q] of merged) {
-      if (p === 0 && q <= tol) continue;          // окрестность M = 0 — кандидат M = 0 отдельно
+      if (p === 0 && q <= tol) continue;          // neighbourhood of M = 0 — candidate M = 0 is handled separately
       const Gp = G(p), Gq = G(q);
       if (Gp < 0 && Gq > 0) roots.push({ M: brent(G, p, q), kind: 'min' });
       else if (Gp > 0 && Gq < 0) roots.push({ M: brent(G, p, q), kind: 'max' });
@@ -170,7 +170,7 @@ export function isolateRoots(mu, L, g, tol = 1e-10) {
 }
 
 // ---------------------------------------------------------------------------
-// Ω(M) − Ω(0) = ∫_0^M m G(m) dm  (Гаусс–Лежандр, замена m = S − u² у порогов)
+// Ω(M) − Ω(0) = ∫_0^M m G(m) dm  (Gauss–Legendre, substitution m = S − u² near thresholds)
 // ---------------------------------------------------------------------------
 
 function gaussLegendre(n) {
@@ -212,7 +212,7 @@ export function omegaRel(M, mu, L, g) {
   if (M === 0) return 0;
   const S = thresholds(mu, L);
   const edges = [0, ...S.filter((s) => s > 0 && s < M)];
-  // за порогами (M > mu) функция гладкая; длинные куски режем по 1
+  // beyond the thresholds (M > mu) the integrand is smooth; long pieces are cut into unit lengths
   let last = edges[edges.length - 1];
   while (M - last > 1 && last >= (S.length ? S[S.length - 1] : 0)) { last += 1; edges.push(last); }
   edges.push(M);
@@ -227,7 +227,7 @@ export function omegaRel(M, mu, L, g) {
 }
 
 // ---------------------------------------------------------------------------
-// Глобальный минимум и фаза
+// Global minimum and phase
 // ---------------------------------------------------------------------------
 
 export function phaseLabel(M, mu, L) {

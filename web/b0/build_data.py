@@ -1,10 +1,10 @@
 """
-Данные для веб-приложения: точные линии переходов при b = 0, g = -1.
+Data for the web app: exact transition lines at b = 0, g = -1.
 
-    python web/b0/build_data.py                      # расчёт (несколько минут)
-    python web/b0/build_data.py --from lines.json    # из готового вывода `njl3-b0 lines --out`
+    python web/b0/build_data.py                      # compute (a few minutes)
+    python web/b0/build_data.py --from lines.json    # from existing output of `njl3-b0 lines --out`
 
-Пишет web/b0/data/phase_lines.json в компактном формате:
+Writes web/b0/data/phase_lines.json in a compact format:
     {"g", "mu_range", "L_range", "nL",
      "lines": {"V-T": [[L, mu, order], ...], ...},
      "special": [{"kind", "L", "mu", ...}, ...]}
@@ -44,7 +44,7 @@ def main():
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, 'w') as f:
         json.dump(compact(full, nL), f, separators=(',', ':'))
-    print(f'{OUT}: {os.path.getsize(OUT) / 1024:.0f} КБ')
+    print(f'{OUT}: {os.path.getsize(OUT) / 1024:.0f} KB')
 
 
 if __name__ == '__main__':

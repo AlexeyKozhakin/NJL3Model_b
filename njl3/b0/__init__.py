@@ -1,14 +1,14 @@
 """
-njl3.b0 — фазовая диаграмма NJL3 на R² × S¹ при b = 0, phi = 0.
+njl3.b0 — phase diagram of the NJL3 model on R² × S¹ at b = 0, phi = 0.
 
-Замкнутые формулы потенциала, гарантированный поиск глобального минимума по M,
-линии фазовых переходов и особые точки.
+Closed-form potential, certified search for the global minimum in M,
+phase-transition lines and special points.
 
     >>> from njl3.b0 import analyze_point
     >>> r = analyze_point(mu=3.5, L=2.0, g=-1.0)
     >>> r.phase, r.M_star
 
-Командная строка: ``njl3-b0 --help`` (или ``python -m njl3.b0 --help``).
+Command line: ``njl3-b0 --help`` (or ``python -m njl3.b0 --help``).
 """
 
 from njl3.b0.formulas import (

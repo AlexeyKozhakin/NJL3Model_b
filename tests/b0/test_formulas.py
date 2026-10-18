@@ -1,4 +1,4 @@
-"""Формулы при b = 0: эталон mpmath, сокращение логарифмов, производные, монотонное разложение."""
+"""Formulas at b = 0: mpmath reference, cancellation of logarithms, derivatives, monotone splitting."""
 
 import math
 
@@ -33,7 +33,7 @@ def test_G0_matches_mpmath():
 
 
 def test_log_cancellation_G_tends_to_G0():
-    """G(M) = G0 + O(M²): логарифмы Omega_L и моды n = 0 сокращаются."""
+    """G(M) = G0 + O(M²): the logarithms of Omega_L and of mode n = 0 cancel."""
     for mu, L in _random_points(30):
         assert F.gap_G(1e-9, mu, L, G_) == pytest.approx(F.gap_G0(mu, L, G_), abs=1e-12)
 
@@ -63,7 +63,7 @@ def test_G2_is_second_order_coefficient():
 
 
 def test_monotone_split():
-    """G = 1/g + A + B, A возрастает, B убывает на [0, mu] (основа гарантированного поиска)."""
+    """G = 1/g + A + B with A increasing and B decreasing on [0, mu] (basis of the certified search)."""
     for mu, L in _random_points(30):
         M = np.linspace(1e-6, mu, 1500)
         A = np.array([F.part_A(m, L) for m in M])
@@ -88,7 +88,7 @@ def test_omega_rel_closed_matches_mpmath_for_large_M():
 
 
 def test_closed_omega_fails_at_small_M():
-    """Документирует, зачем нужна устойчивая форма: замкнутая формула теряет точность."""
+    """Documents why the stable form is needed: the closed form loses precision."""
     mu, L, M = 3.2, 1.0, 1e-8
     ref = float(R.omega_rel(M, mu, L, G_))
     assert abs(F.omega_rel_closed(M, mu, L, G_) - ref) > 1e3 * abs(F.omega_rel(M, mu, L, G_) - ref)

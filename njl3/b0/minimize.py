@@ -1,17 +1,17 @@
 """
-Гарантированный поиск глобального минимума Omega(M) при b = 0 и определение фазы.
+Certified search for the global minimum of Omega(M) at b = 0, and phase labelling.
 
-Теорема (монотонное разложение):
-  1) На [mu, ∞) мод нет и G строго возрастает — не более одного корня
-     (вакуумный минимум M_vac(L), от mu не зависит).
-  2) На [0, mu]  G = 1/g + A(M) + B(M), A возрастает, B убывает, поэтому
-         1/g + A(p) + B(q) ≤ G(M) ≤ 1/g + A(q) + B(p)   на [p, q].
-     Деление пополам с отсечением по этой вилке находит ВСЕ корни G.
+Theorem (monotone splitting):
+  1) On [mu, ∞) no modes are filled and G is strictly increasing — at most one root
+     (the vacuum minimum M_vac(L), independent of mu).
+  2) On [0, mu]  G = 1/g + A(M) + B(M) with A increasing and B decreasing, hence
+         1/g + A(p) + B(q) ≤ G(M) ≤ 1/g + A(q) + B(p)   on [p, q].
+     Bisection with pruning by these bounds finds ALL roots of G.
 
-Кандидаты глобального минимума: M = 0 (всегда стационарна, dOmega/dM = M G) и все
-корни G со сменой знака − → +.
+Candidates for the global minimum: M = 0 (always stationary, dOmega/dM = M G) and every
+root of G where its sign changes from − to +.
 
-Фазы: 'T' (M* = 0), 'V' (M* ≥ mu), 'I<j>' (0 < M* < mu, заполнены моды 0..j).
+Phases: 'T' (M* = 0), 'V' (M* ≥ mu), 'I<j>' (0 < M* < mu, modes 0..j filled).
 """
 
 import math
@@ -25,12 +25,12 @@ from njl3.b0 import formulas as F
 
 def isolate_roots(mu, L, g, tol=1e-10):
     """
-    Все корни G(M) = 0 при M > 0 с гарантией полноты.
+    All roots of G(M) = 0 for M > 0, with a completeness guarantee.
 
-    Возвращает отсортированный список (M, kind), kind ∈ {'min', 'max', 'touch'}:
-    'min' — G меняет знак − → + (локальный минимум Omega), 'max' — + → −,
-    'touch' — касание нуля без смены знака в окне ширины tol (граница
-    существования минимума).
+    Returns a sorted list of (M, kind), kind ∈ {'min', 'max', 'touch'}:
+    'min' — G changes sign from − to + (a local minimum of Omega), 'max' — from + to −,
+    'touch' — G touches zero without a sign change inside a window of width tol (the edge
+    of existence of a minimum).
     """
     G = lambda x: F.gap_G(x, mu, L, g)
     roots = []
@@ -59,7 +59,7 @@ def isolate_roots(mu, L, g, tol=1e-10):
                 merged.append((p, q))
         for p, q in merged:
             if p == 0.0 and q <= tol:
-                continue                      # окрестность M = 0: M = 0 учитывается отдельно
+                continue                      # neighbourhood of M = 0: M = 0 is handled separately
             Gp = F.gap_G0(mu, L, g) if p == 0.0 else G(p)
             Gq = G(q)
             if Gp < 0.0 < Gq:
@@ -80,10 +80,10 @@ def isolate_roots(mu, L, g, tol=1e-10):
 
 def find_minimum(mu, L, g, tol=1e-10, roots=None):
     """
-    Глобальный минимум Omega(M) при b = 0 (гарантированный).
+    Global minimum of Omega(M) at b = 0 (certified).
 
-    roots — уже найденные isolate_roots(mu, L, g) (чтобы не искать повторно).
-    Возвращает (M*, Omega(M*) - Omega(0), [(M, Omega - Omega(0)) для всех локальных минимумов M > 0]).
+    roots — the output of isolate_roots(mu, L, g), if already computed.
+    Returns (M*, Omega(M*) - Omega(0), [(M, Omega - Omega(0)) for every local minimum M > 0]).
     """
     if roots is None:
         roots = isolate_roots(mu, L, g, tol)
@@ -97,8 +97,8 @@ def find_minimum(mu, L, g, tol=1e-10, roots=None):
 
 def find_minimum_scan(mu, L, g, M_max=8.0, n_scan=600):
     """
-    Базовый (негарантированный) метод для сравнения: скан G по сетке M + Брент.
-    Пропускает пары корней уже шага сетки.
+    Baseline (non-certified) method for comparison: scan of G on an M grid + Brent.
+    Misses pairs of roots closer than the grid step.
     """
     while F.gap_G(M_max, mu, L, g) < 0:
         M_max *= 2.0
@@ -116,7 +116,7 @@ def find_minimum_scan(mu, L, g, M_max=8.0, n_scan=600):
 
 
 def M_vacuum(L, g):
-    """Вакуумная масса: корень 1/g + M/pi + (2/(pi L)) ln(1 - e^{-LM}) = 0."""
+    """Vacuum mass: the root of 1/g + M/pi + (2/(pi L)) ln(1 - e^{-LM}) = 0."""
     f = lambda M: 1.0 / g + M / math.pi + 2.0 / (math.pi * L) * math.log(-math.expm1(-L * M))
     hi = 1.0
     while f(hi) < 0.0:
@@ -125,7 +125,7 @@ def M_vacuum(L, g):
 
 
 def phase_label(M_star, mu, L):
-    """'T' (M* = 0), 'V' (M* ≥ mu) или 'I<j>' (заполнены моды 0..j)."""
+    """'T' (M* = 0), 'V' (M* ≥ mu) or 'I<j>' (modes 0..j filled)."""
     if M_star == 0.0:
         return 'T'
     if M_star >= mu:
@@ -134,14 +134,14 @@ def phase_label(M_star, mu, L):
 
 
 def phase_at(mu, L, g):
-    """(метка фазы, M*)."""
+    """(phase label, M*)."""
     M, _, _ = find_minimum(mu, L, g)
     return phase_label(M, mu, L), M
 
 
 @dataclass
 class PointResult:
-    """Полная информация о точке (mu, L, g)."""
+    """Full result at a point (mu, L, g)."""
     mu: float
     L: float
     g: float
@@ -161,7 +161,7 @@ class PointResult:
 
 
 def analyze_point(mu, L, g):
-    """Фаза, глобальный и локальные минимумы, корни G, G0, G2 в одной точке."""
+    """Phase, global and local minima, roots of G, G0 and G2 at one point."""
     roots = isolate_roots(mu, L, g)
     M, Om, minima = find_minimum(mu, L, g, roots=roots)
     return PointResult(mu=mu, L=L, g=g, phase=phase_label(M, mu, L), M_star=M, omega_star=Om,

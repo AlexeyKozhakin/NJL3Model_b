@@ -1,9 +1,8 @@
 """
-Эталон высокой точности (mpmath) для формул при b = 0.
+High-precision reference (mpmath) for the b = 0 formulas.
 
-Прямые формулы без «устойчивых» преобразований: при достаточном числе цифр
-сокращение логарифмов у M = 0 безопасно. Используется в тестах и для оценки
-точности (notebooks/47_accuracy_b0.py).
+Direct formulas without the "stable" rewritings: with enough digits the cancellation of
+logarithms near M = 0 is harmless. Used by the tests and for the accuracy study.
 """
 
 import mpmath as mp
@@ -18,7 +17,7 @@ def _modes(mu, L):
 
 
 def G(M, mu, L, g, dps=50):
-    """G(M) с dps значащими цифрами."""
+    """G(M) with dps significant digits."""
     with mp.workdps(dps):
         M, mu, L = mp.mpf(M), mp.mpf(mu), mp.mpf(L)
         s = mp.log(1 - mp.exp(-L * M))
@@ -49,7 +48,7 @@ def _I(m, mu):
 
 
 def omega_rel(M, mu, L, g, dps=50):
-    """Omega(M) - Omega(0) по замкнутым формулам с dps цифрами."""
+    """Omega(M) - Omega(0) from the closed forms with dps digits."""
     with mp.workdps(dps):
         M, mu, L = mp.mpf(M), mp.mpf(mu), mp.mpf(L)
         OL = lambda MM: 2 / (mp.pi * L**3) * (L * MM * mp.polylog(2, mp.exp(-L * MM)) + mp.polylog(3, mp.exp(-L * MM)))
@@ -59,10 +58,10 @@ def omega_rel(M, mu, L, g, dps=50):
 
 
 def root_near(M_guess, mu, L, g, rel_width=1e-6, dps=50):
-    """Корень G рядом с M_guess — только внутри вилки со сменой знака (без перескока на соседнюю ветвь)."""
+    """Root of G near M_guess — only inside a sign-changing bracket (no jump to a neighbouring branch)."""
     with mp.workdps(dps):
         for w in (rel_width, 1e-4, 1e-3):
             a, b = mp.mpf(M_guess) * (1 - w), mp.mpf(M_guess) * (1 + w)
             if G(a, mu, L, g, dps) * G(b, mu, L, g, dps) < 0:
                 return mp.findroot(lambda x: G(x, mu, L, g, dps), (a, b), solver='anderson')
-    raise ValueError('нет смены знака G около M_guess')
+    raise ValueError('G does not change sign near M_guess')

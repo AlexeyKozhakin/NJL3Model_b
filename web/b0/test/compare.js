@@ -1,5 +1,5 @@
-// Сверка JS-ядра (web/b0/js/njl3b0.js) с эталоном Python (njl3.b0).
-// Запуск: node web/b0/test/compare.js golden.json   -> печатает JSON с максимальными расхождениями.
+// Checks the JS core (web/b0/js/njl3b0.js) against the Python reference (njl3.b0).
+// Usage: node web/b0/test/compare.js golden.json   -> prints JSON with the largest deviations.
 import { readFileSync } from 'node:fs';
 import { gapG, gapG0, G2, omegaRel, isolateRoots, findMinimum, phaseLabel, vacuumMass, peak } from '../js/njl3b0.js';
 

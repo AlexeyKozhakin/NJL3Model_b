@@ -1,4 +1,4 @@
-"""Гарантированный поиск корней G и глобального минимума, фазы, известные значения."""
+"""Certified search for the roots of G and the global minimum, phases, known values."""
 
 import math
 
@@ -32,7 +32,7 @@ def test_roots_match_mpmath():
 
 
 def test_certified_finds_everything_a_dense_scan_finds():
-    """На плотной сетке (20 000 точек) скан не находит корней, которых нет у гарантированного метода."""
+    """On a dense grid (20 000 points) the scan finds no root that the certified method misses."""
     for mu, L in _random_points(25):
         M = np.concatenate([np.geomspace(1e-8, 1e-2, 2000), np.linspace(1e-2, 2.0 * mu + 4.0, 18000)])
         Gs = F.gap_G_vec(M, mu, L, G_)
@@ -42,7 +42,7 @@ def test_certified_finds_everything_a_dense_scan_finds():
 
 
 def test_scan_misses_narrow_pair():
-    """Пример из статьи: пара корней шириной 0.003 при шаге скана 0.013."""
+    """Example from the paper: a pair of roots 0.003 apart with a scan step of 0.013."""
     mu, L = 3.3, 3.73
     roots = isolate_roots(mu, L, G_)
     assert [k for _, k in roots] == ['min', 'max', 'min']

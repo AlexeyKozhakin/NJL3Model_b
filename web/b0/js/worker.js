@@ -1,4 +1,4 @@
-// Фоновый расчёт карты M*(L, mu): строки по L, гарантированный минимизатор из njl3b0.js.
+// Background computation of the map M*(L, mu): rows in L, certified minimiser from njl3b0.js.
 import { findMinimum, phaseLabel } from './njl3b0.js';
 
 self.onmessage = ({ data }) => {

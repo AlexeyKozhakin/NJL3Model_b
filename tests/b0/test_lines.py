@@ -1,8 +1,6 @@
-"""Линии переходов, пики, асимптотики; сверка с численными интеграторами общего кода."""
+"""Transition lines, peaks, asymptotics; closed forms against direct numerical integration."""
 
 import math
-import os
-import sys
 
 import numpy as np
 import pytest
@@ -20,7 +18,7 @@ def test_stability_line(L, mu_s):
 
 
 def test_stability_line_explicit_single_mode():
-    """При n_max = 0: mu_s = e^{pi L / (2|g|)} / (2L)."""
+    """For n_max = 0: mu_s = e^{pi L / (2|g|)} / (2L)."""
     for L in [0.3, 0.5, 1.0]:
         assert mu_stability(L, G_) == pytest.approx(math.exp(math.pi * L / 2) / (2 * L), rel=1e-13)
 
@@ -79,15 +77,31 @@ def test_critical_end_point():
 
 @pytest.mark.slow
 def test_closed_forms_match_numerical_integrators():
-    """Мост к статье 2: замкнутые формулы = прямое численное интегрирование (functions/*_fast)."""
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-    from functions.dU_fast import dU_scalar
-    from functions.Omega_L_fast import Omega_L_scalar
-    from functions.Omega_mu_L import fun_Omega_L_mu_int
+    """Closed forms against direct adaptive integration of the defining integrals:
 
-    for L in [0.5, 1.0, 2.0]:
-        for mu in [1.5, 3.2, 5.0]:
-            for M in [0.3, 1.0, 2.5]:
-                assert dU_scalar(0.0, M, 400, 400) - dU_scalar(0.0, 0.0, 400, 400) == pytest.approx(F.dU(M), abs=1e-5)
-                assert Omega_L_scalar(L, 0.0, M, 0.0, 400, 400) == pytest.approx(F.omega_L(M, L), abs=1e-5)
-                assert fun_Omega_L_mu_int(mu, L, 0.0, M, 0, 6400) == pytest.approx(F.omega_muL(M, mu, L), abs=1e-5)
+        Omega_L(M)   = (4/(pi² L²)) ∫_0^∞ dp s(L sqrt(M² + p²)),
+                       s(x) = -∫_0^∞ ln(1 - e^{-sqrt(t² + x²)}) dt,
+        Omega_muL(M) = -(2/(pi L)) sum_{m_n<mu} C_n ∫_0^{P_n} (mu - sqrt(p² + m_n²)) dp.
+    """
+    from scipy.integrate import quad
+
+    def s(x):
+        return -quad(lambda t: math.log(-math.expm1(-math.sqrt(t * t + x * x))), 0, math.inf, limit=200)[0]
+
+    def omega_L_num(M, L):
+        return 4 / (math.pi**2 * L**2) * quad(lambda p: s(L * math.sqrt(M * M + p * p)), 0, math.inf, limit=200)[0]
+
+    def omega_muL_num(M, mu, L):
+        tot = 0.0
+        for k, C in F.modes(mu, L):
+            m = math.hypot(M, k)
+            if m < mu:
+                P = math.sqrt(mu * mu - m * m)
+                tot += C * 2 * quad(lambda p: mu - math.sqrt(p * p + m * m), 0, P)[0]
+        return -tot / (math.pi * L)
+
+    for L in [0.5, 2.0]:
+        for M in [0.3, 2.5]:
+            assert omega_L_num(M, L) == pytest.approx(F.omega_L(M, L), abs=1e-9)
+            for mu in [1.5, 3.2, 5.0]:
+                assert omega_muL_num(M, mu, L) == pytest.approx(F.omega_muL(M, mu, L), abs=1e-12)

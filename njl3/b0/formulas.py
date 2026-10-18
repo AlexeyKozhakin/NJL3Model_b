@@ -1,8 +1,8 @@
 """
-Замкнутые формулы для потенциала NJL3 на R² × S¹ при b = 0, phi = 0.
+Closed-form expressions for the NJL3 potential on R² × S¹ at b = 0, phi = 0.
 
-Обозначения: k_n = 2 pi n / L, m_n = sqrt(M² + k_n²), P_n = sqrt(mu² - m_n²),
-S_n = sqrt(mu² - k_n²) (порог моды n по M), C_0 = 1, C_{n≥1} = 2,
+Notation: k_n = 2 pi n / L, m_n = sqrt(M² + k_n²), P_n = sqrt(mu² - m_n²),
+S_n = sqrt(mu² - k_n²) (threshold of mode n in M), C_0 = 1, C_{n≥1} = 2,
 n_max = floor(L mu / (2 pi)).
 
     Delta U(M)   = M³ / (3 pi)
@@ -10,17 +10,17 @@ n_max = floor(L mu / (2 pi)).
     Omega_muL(M) = -(2/(pi L)) sum_{m_n<mu} C_n I(m_n),
                    I(m) = mu P/2 - (m²/2) ln((mu + P)/m)
 
-Уравнение щели dOmega/dM = M G(M):
+Gap equation dOmega/dM = M G(M):
 
     G(M) = 1/g + M/pi + (2/(pi L)) [ ln(1 - e^{-LM}) + sum_{m_n<mu} C_n arccosh(mu/m_n) ]
     G(0⁺) = 1/g + (2/(pi L)) [ ln(2 mu L) + 2 sum_{n=1}^{n_max} arccosh(mu/k_n) ]
     G(M) = G0 + G2 M² + O(M⁴),
     G2 = (2/(pi L)) [ L²/24 - 1/(4 mu²) - sum_{n≥1} C_n mu / (2 k_n² S_n) ]
 
-Логарифмические особенности Omega_L и моды n = 0 при M -> 0 сокращаются; функции
-ниже вычисляют их в объединённой (устойчивой) форме.
+The logarithmic singularities of Omega_L and of mode n = 0 cancel as M -> 0; the
+functions below evaluate them in the combined (numerically stable) form.
 
-Вывод формул — в готовящейся статье.
+The derivation is given in the accompanying paper.
 """
 
 import math
@@ -30,11 +30,11 @@ import numpy as np
 
 
 # ==============================================================================
-# Моды
+# Modes
 # ==============================================================================
 
 def modes(mu, L):
-    """Заполненные при M = 0 моды: список (k_n, C_n) для n = 0..n_max."""
+    """Modes filled at M = 0: list of (k_n, C_n) for n = 0..n_max."""
     if mu <= 0.0:
         return []
     n_max = int(math.floor(L * mu / (2.0 * math.pi)))
@@ -42,26 +42,26 @@ def modes(mu, L):
 
 
 def thresholds(mu, L):
-    """Пороги S_n = sqrt(mu² - k_n²) по возрастанию (последний — S_0 = mu)."""
+    """Thresholds S_n = sqrt(mu² - k_n²) in ascending order (the last one is S_0 = mu)."""
     return sorted(math.sqrt(mu * mu - k * k) for k, _ in modes(mu, L))
 
 
 def filled_mode(M, mu, L):
-    """Старшая заполненная мода при массе M < mu: floor(L sqrt(mu² - M²) / (2 pi))."""
+    """Highest filled mode at mass M < mu: floor(L sqrt(mu² - M²) / (2 pi))."""
     return int(math.floor(L * math.sqrt(mu * mu - M * M) / (2.0 * math.pi)))
 
 
 # ==============================================================================
-# Потенциал
+# Potential
 # ==============================================================================
 
 def dU(M):
-    """Вакуумный вклад Delta U(M) = M³ / (3 pi)."""
+    """Vacuum term Delta U(M) = M³ / (3 pi)."""
     return M**3 / (3.0 * math.pi)
 
 
 def omega_L(M, L):
-    """Компактификационный вклад Omega_L(M); Omega_L(0) = 2 zeta(3) / (pi L³)."""
+    """Compactification term Omega_L(M); Omega_L(0) = 2 zeta(3) / (pi L³)."""
     x = math.exp(-L * M)
     return 2.0 / (math.pi * L**3) * float(L * M * mpmath.polylog(2, x) + mpmath.polylog(3, x))
 
@@ -76,14 +76,14 @@ def _I(m, mu):
 
 
 def omega_muL(M, mu, L):
-    """Термический вклад Omega_muL(M)."""
+    """Matter (chemical-potential) term Omega_muL(M)."""
     return -2.0 / (math.pi * L) * sum(C * _I(math.sqrt(M * M + k * k), mu) for k, C in modes(mu, L))
 
 
 def omega_rel_closed(M, mu, L, g):
     """
-    Omega(M) - Omega(0) по замкнутым формулам.
-    Внимание: при малых M вычитает числа порядка единицы (см. omega_rel).
+    Omega(M) - Omega(0) from the closed forms.
+    Warning: at small M this subtracts numbers of order one (see omega_rel).
     """
     return (M**2 / (2.0 * g) + dU(M)
             + omega_L(M, L) - omega_L(0.0, L)
@@ -95,14 +95,14 @@ _GL_X, _GL_W = np.polynomial.legendre.leggauss(48)
 
 def omega_rel(M, mu, L, g, M_switch=0.5):
     """
-    Omega(M) - Omega(0) без потери точности.
+    Omega(M) - Omega(0) without loss of precision.
 
-    При M < M_switch: ∫_0^M m G(m) dm квадратурой Гаусса–Лежандра (48 узлов на отрезок
-    между порогами мод). У G корневая особенность sqrt(S - m) слева от порога S,
-    поэтому на отрезке [a, b], если ближайший порог S ≥ b ближе длины отрезка,
-    делается замена m = S - u² (подынтегральное выражение становится гладким). Относительная
-    точность ~1e-14 даже при разности ~1e-16 (около переходов 2-го рода).
-    При M ≥ M_switch — замкнутая формула.
+    For M < M_switch: ∫_0^M m G(m) dm by Gauss–Legendre quadrature (48 nodes per interval
+    between mode thresholds). G has a square-root singularity sqrt(S - m) to the left of a
+    threshold S, so on an interval [a, b] whose nearest threshold S ≥ b is closer than the
+    interval length the substitution m = S - u² is used (the integrand becomes smooth).
+    Relative accuracy ~1e-14 even when the difference is ~1e-16 (near second-order
+    transitions). For M ≥ M_switch the closed form is used.
     """
     if M >= M_switch:
         return omega_rel_closed(M, mu, L, g)
@@ -114,11 +114,11 @@ def omega_rel(M, mu, L, g, M_switch=0.5):
     for a, b in zip(edges[:-1], edges[1:]):
         S = next((x for x in S_all if x >= b), None)
         if S is None or S - b >= b - a:
-            # особенность далеко (или её нет): обычная квадратура по m
+            # singularity is far (or absent): plain quadrature in m
             m = 0.5 * (b - a) * _GL_X + 0.5 * (a + b)
             total += 0.5 * (b - a) * np.dot(_GL_W, m * gap_G_vec(m, mu, L, g))
         else:
-            # порог близко: m = S - u², u ∈ [sqrt(S - b), sqrt(S - a)]
+            # threshold is close: m = S - u², u ∈ [sqrt(S - b), sqrt(S - a)]
             ua, ub = math.sqrt(S - b), math.sqrt(S - a)
             u = 0.5 * (ub - ua) * _GL_X + 0.5 * (ua + ub)
             m = np.maximum(S - u * u, 1e-300)
@@ -127,11 +127,11 @@ def omega_rel(M, mu, L, g, M_switch=0.5):
 
 
 # ==============================================================================
-# Уравнение щели
+# Gap equation
 # ==============================================================================
 
 def _inv_expm1_minus_inv(x):
-    """1/(e^x - 1) - 1/x без потери точности при малых x."""
+    """1/(e^x - 1) - 1/x without loss of precision at small x."""
     x = np.asarray(x, dtype=float)
     small = x < 0.1
     xs = np.where(small, x, 0.1)
@@ -142,9 +142,9 @@ def _inv_expm1_minus_inv(x):
 
 def gap_G_vec(M, mu, L, g):
     """
-    G(M) для массива M > 0.
+    G(M) for an array M > 0.
 
-    При M < mu особые слагаемые объединены:
+    For M < mu the singular terms are combined:
         ln(1 - e^{-LM}) + ln((mu + P_0)/M) = ln[(1 - e^{-x})/x] + ln[L (mu + P_0)],  x = LM.
     """
     M = np.asarray(M, dtype=float)
@@ -162,12 +162,12 @@ def gap_G_vec(M, mu, L, g):
 
 
 def gap_G(M, mu, L, g):
-    """G(M) при M > 0 (скаляр)."""
+    """G(M) for a scalar M > 0."""
     return float(gap_G_vec(np.array([M]), mu, L, g)[0])
 
 
 def gap_G0(mu, L, g):
-    """G(0⁺) с явно сокращёнными логарифмами (-inf при mu ≤ 0)."""
+    """G(0⁺) with the logarithms cancelled explicitly (-inf for mu ≤ 0)."""
     if mu <= 0.0:
         return -math.inf
     s = math.log(2.0 * mu * L)
@@ -178,9 +178,9 @@ def gap_G0(mu, L, g):
 
 def gap_dG_vec(M, mu, L):
     """
-    G'(M) для массива M > 0 (не зависит от g):
+    G'(M) for an array M > 0 (independent of g):
         G' = (1/pi) coth(LM/2) - (2 mu/(pi L)) sum_{m_n<mu} C_n M / (m_n² P_n),
-    особенности ~1/M объединены: (2/pi)[1/(e^x - 1) - 1/x] - (2/pi) M / (L P_0 (mu + P_0)).
+    the ~1/M singularities are combined: (2/pi)[1/(e^x - 1) - 1/x] - (2/pi) M / (L P_0 (mu + P_0)).
     """
     M = np.asarray(M, dtype=float)
     x = L * M
@@ -199,7 +199,7 @@ def gap_dG_vec(M, mu, L):
 
 
 def G2(mu, L):
-    """Коэффициент при M² в G(M) = G0 + G2 M² + ... (не зависит от g; -inf ровно на пороге моды)."""
+    """Coefficient of M² in G(M) = G0 + G2 M² + ... (independent of g; -inf exactly at a mode threshold)."""
     s = L * L / 24.0 - 1.0 / (4.0 * mu * mu)
     for k, C in modes(mu, L)[1:]:
         S2 = mu * mu - k * k
@@ -210,16 +210,16 @@ def G2(mu, L):
 
 
 # ==============================================================================
-# Монотонное разложение G = 1/g + A(M) + B(M) на [0, mu]
+# Monotone splitting G = 1/g + A(M) + B(M) on [0, mu]
 # ==============================================================================
 #
-#   A(M) = M/pi + (2/(pi L)) ln[(1 - e^{-LM})/(LM)]  — возрастает:
+#   A(M) = M/pi + (2/(pi L)) ln[(1 - e^{-LM})/(LM)]  — increasing:
 #          A'(M) = (1/pi) [coth(LM/2) - 2/(LM)] > 0;
-#   B(M) = (2/(pi L)) [ln(L (mu + P_0)) + sum_{n≥1, m_n<mu} C_n arccosh(mu/m_n)] — убывает.
-#   Поэтому на [p, q] ⊂ [0, mu]:  1/g + A(p) + B(q) ≤ G ≤ 1/g + A(q) + B(p).
+#   B(M) = (2/(pi L)) [ln(L (mu + P_0)) + sum_{n≥1, m_n<mu} C_n arccosh(mu/m_n)] — decreasing.
+#   Hence on [p, q] ⊂ [0, mu]:  1/g + A(p) + B(q) ≤ G ≤ 1/g + A(q) + B(p).
 
 def part_A(M, L):
-    """A(M), A(0) = 0. Возрастает."""
+    """A(M), A(0) = 0. Increasing."""
     if M == 0.0:
         return 0.0
     x = L * M
@@ -227,7 +227,7 @@ def part_A(M, L):
 
 
 def part_B(M, mu, L):
-    """B(M) на [0, mu]. Убывает."""
+    """B(M) on [0, mu]. Decreasing."""
     s = math.log(L * (mu + math.sqrt(max(mu * mu - M * M, 0.0))))
     for k, C in modes(mu, L)[1:]:
         m = math.sqrt(M * M + k * k)
