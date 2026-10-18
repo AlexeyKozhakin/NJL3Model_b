@@ -1,0 +1,12 @@
+point mu = 3.15, L = 3.5: phase I1, M* = 0.893548965789, Omega* - Omega(0) = -2.8489782670e-03
+  local minima: M = 0.8935489658 (dOmega = -2.848978e-03), M = 2.9122649966 (dOmega = 3.216562e-02)
+vacuum mass M_vac(L = 3.5) = 3.141602239509
+stability edge of M = 0 at L = 1: mu_s = 2.405238690483
+transitions in mu at L = 3.5:
+    V -> I0  at mu = 3.1014684751, order 1
+   I0 -> I1  at mu = 3.1208059008, order 1
+   I1 -> T   at mu = 3.2248655571, order 2
+peaks with L_n <= 6:
+  n = 1: L_n = 1.6113000800, mu_n = 3.8994507512
+  n = 2: L_n = 3.7293741534, mu_n = 3.3695655350
+  n = 3: L_n = 5.7804936446, mu_n = 3.2608903461
