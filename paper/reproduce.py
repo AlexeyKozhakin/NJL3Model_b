@@ -12,6 +12,7 @@ Targets:
     tab-special   special points (critical end points, peaks)
     tab-accuracy  accuracy against mpmath (50 digits): G, Omega, roots, lines
     tab-scan      certified search against a grid scan: missed minima and timing
+    tab-perf      performance: single operations, a map, the lines; JS core in Node.js
 
 Output: paper/output/ (PNG and PDF figures, Markdown and CSV tables, lines.json).
 Coupling g = -1 throughout.
@@ -82,7 +83,7 @@ def lines():
             return d
     t = time.time()
     d = trace_lines(np.linspace(*L_RANGE, nL), G, *MU_RANGE, n_mu)
-    d.update(nL=nL, n_mu=n_mu)
+    d.update(nL=nL, n_mu=n_mu, seconds=time.time() - t, cores=os.cpu_count())
     with open(path, 'w') as f:
         json.dump(d, f, indent=1)
     print(f'  transition lines: {nL} values of L, {time.time() - t:.0f} s')
@@ -337,9 +338,81 @@ def tab_scan():
 
 
 # ==============================================================================
+# tab-perf: performance
+# ==============================================================================
+
+def _per_call(f, n):
+    t = time.perf_counter()
+    for _ in range(n):
+        f()
+    return (time.perf_counter() - t) / n
+
+
+def tab_perf():
+    import platform
+    import shutil
+    import subprocess
+    import scipy
+    print('tab-perf: performance')
+    rng = np.random.default_rng(7)
+    n = 300 if QUICK else 2000
+    pts = [(float(rng.uniform(*MU_RANGE)), float(rng.uniform(*L_RANGE))) for _ in range(n)]
+    us = lambda s: f'{s * 1e6:.1f} µs'
+    ms = lambda s: f'{s * 1e3:.2f} ms'
+    rows = []
+    t_gap = np.mean([_per_call(lambda: F.gap_G(0.37 * mu, mu, L, G), 5) for mu, L in pts[:200]])
+    rows.append(('G(M), one value (Python, double)', us(t_gap), 'closed form, stable'))
+    Mv = np.linspace(1e-3, 6.0, 1000)
+    t_vec = _per_call(lambda: F.gap_G_vec(Mv, 4.0, 5.0, G), 20) / Mv.size
+    rows.append(('G(M), vectorised over 1000 values of M', us(t_vec), 'per value'))
+    t_om = np.mean([_per_call(lambda: F.omega_rel(0.3 * min(mu, 1.5), mu, L, G), 3) for mu, L in pts[:200]])
+    rows.append(('Omega(M) - Omega(0), stable form (M < 0.5)', us(t_om), 'Gauss-Legendre over m G(m)'))
+    t_ref = np.mean([_per_call(lambda: R.G(0.37 * mu, mu, L, G), 1) for mu, L in pts[:50]])
+    rows.append(('G(M), mpmath reference (50 digits)', ms(t_ref), 'for comparison'))
+    t = time.perf_counter()
+    for mu, L in pts:
+        isolate_roots(mu, L, G)
+    rows.append(('all roots of G, certified (one point)', ms((time.perf_counter() - t) / n),
+                 f'mean over {n} random points'))
+    t = time.perf_counter()
+    for mu, L in pts:
+        find_minimum(mu, L, G)
+    rows.append(('global minimum, certified (one point)', ms((time.perf_counter() - t) / n),
+                 'roots + Omega at every local minimum'))
+    nm = 150 if QUICK else 300
+    t = time.time()
+    compute_grid(np.linspace(*MU_RANGE, nm), np.linspace(*L_RANGE, nm), G)
+    rows.append((f'map {nm}×{nm} = {nm * nm} points', f'{time.time() - t:.1f} s', f'{os.cpu_count()} processes'))
+    Ls = [0.5, 2.0, 5.0, 9.0]
+    from njl3.b0.lines import trace_L
+    t = time.time()
+    for L in Ls:
+        trace_L(L, G)
+    rows.append(('transitions along mu at fixed L (400-point scan + bisection)',
+                 f'{(time.time() - t) / len(Ls):.2f} s', 'one value of L'))
+    d = lines()
+    if 'seconds' in d:
+        rows.append((f"transition lines, {d['nL']} values of L, with special points", f"{d['seconds']:.0f} s",
+                     f"{d.get('cores', '?')} processes"))
+    node = shutil.which('node')
+    if node:
+        js = json.loads(subprocess.run([node, os.path.join(os.path.dirname(__file__), '..', 'web', 'b0', 'test',
+                                                           'bench.js'), str(n)],
+                                       capture_output=True, text=True, check=True).stdout)
+        rows.append(('G(M), one value (JS, Node.js)', us(js['gapG_us'] * 1e-6), f"Node {js['node']}"))
+        rows.append(('global minimum, certified (JS, one point)', ms(js['findMinimum_us'] * 1e-6),
+                     'the web app runs this in background workers'))
+    env = (f"{platform.processor() or platform.machine()}, {os.cpu_count()} cores; Python {platform.python_version()}, "
+           f"NumPy {np.__version__}, SciPy {scipy.__version__}, mpmath {mp.__version__}")
+    rows.append(('machine', env, ''))
+    write_table('tab_performance', ['operation', 'time', 'comment'], rows, ['{}', '{}', '{}'])
+
+
+# ==============================================================================
 
 TARGETS = {'fig1': fig1, 'fig2': fig2, 'fig3': fig3, 'tab-special': tab_special,
-           'tab-accuracy': tab_accuracy, 'tab-scan': tab_scan}
+           'tab-accuracy': tab_accuracy, 'tab-scan': tab_scan,
+           'tab-perf': tab_perf}
 
 
 def main():

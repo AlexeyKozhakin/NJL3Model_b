@@ -20,5 +20,6 @@ Output goes to `paper/output/` (figures as PNG and PDF, tables as Markdown and C
 | `tab-special` | special points: critical end points and peaks |
 | `tab-accuracy` | double precision against mpmath (50 digits): $G$, $\Omega$, roots, analytic and traced lines |
 | `tab-scan` | certified search against a grid scan: missed minima, wrong global minima, time per point |
+| `tab-perf` | performance: single operations (Python and the JS core in Node.js), a map, the transition lines |
 
 `fig1`, `tab-special` and `tab-accuracy` share the traced lines, cached in `paper/output/lines.json`.
