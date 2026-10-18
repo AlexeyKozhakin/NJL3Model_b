@@ -1,7 +1,7 @@
 """
 Reproduce every figure and table of the paper on the b = 0 phase diagram (njl3.b0 only).
 
-    python paper/reproduce.py              # everything (~10-20 min on 8 cores)
+    python paper/reproduce.py              # everything (~15 min on 8 cores, mostly fig1 lines)
     python paper/reproduce.py --quick      # smaller grids and samples (~1-2 min), same outputs
     python paper/reproduce.py fig1 tab-accuracy   # selected targets
 

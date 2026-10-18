@@ -5,7 +5,7 @@ uses only the `njl3.b0` package (plus scipy, mpmath and matplotlib):
 
 ```bash
 pip install -e ".[plot]"
-python paper/reproduce.py              # everything, ~10 min on 8 cores
+python paper/reproduce.py              # everything, ~15 min on 8 cores (mostly the transition lines)
 python paper/reproduce.py --quick      # smaller grids and samples, ~1-2 min
 python paper/reproduce.py fig2 tab-scan   # selected targets
 ```
