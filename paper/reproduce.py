@@ -1,0 +1,360 @@
+"""
+Reproduce every figure and table of the paper on the b = 0 phase diagram (njl3.b0 only).
+
+    python paper/reproduce.py              # everything (~10-20 min on 8 cores)
+    python paper/reproduce.py --quick      # smaller grids and samples (~1-2 min), same outputs
+    python paper/reproduce.py fig1 tab-accuracy   # selected targets
+
+Targets:
+    fig1          transition lines: whole range and the strip mu in [2.5, 4]
+    fig2          map of M*(L, mu) in the peak region mu in [3, 3.4], L in [2, 10]
+    fig3          G(M) from the closed form against finite differences of direct integration
+    tab-special   special points (critical end points, peaks)
+    tab-accuracy  accuracy against mpmath (50 digits): G, Omega, roots, lines
+    tab-scan      certified search against a grid scan: missed minima and timing
+
+Output: paper/output/ (PNG and PDF figures, Markdown and CSV tables, lines.json).
+Coupling g = -1 throughout.
+"""
+
+import csv
+import json
+import math
+import os
+import sys
+import time
+
+for _v in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS', 'MKL_NUM_THREADS'):
+    os.environ.setdefault(_v, '1')
+
+import mpmath as mp
+import numpy as np
+from scipy.integrate import quad
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from njl3.b0 import formulas as F
+from njl3.b0 import reference as R
+from njl3.b0.lines import M_vacuum, compute_grid, mu_stability, mu_VT, peaks, trace_lines
+from njl3.b0.minimize import find_minimum, find_minimum_scan, isolate_roots
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+G = -1.0
+QUICK = '--quick' in sys.argv
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'output')
+MU_RANGE, L_RANGE = (0.05, 7.0), (0.1, 10.0)
+plt.rcParams.update({'font.size': 10, 'axes.linewidth': 0.8, 'savefig.bbox': 'tight'})
+
+
+def save(fig, name):
+    for ext in ('png', 'pdf'):
+        fig.savefig(os.path.join(OUT, f'{name}.{ext}'), dpi=200)
+    plt.close(fig)
+    print(f'  -> {name}.png, {name}.pdf')
+
+
+def write_table(name, header, rows, fmt):
+    with open(os.path.join(OUT, f'{name}.csv'), 'w', newline='') as f:
+        csv.writer(f).writerows([header, *rows])
+    with open(os.path.join(OUT, f'{name}.md'), 'w') as f:
+        f.write('| ' + ' | '.join(header) + ' |\n|' + '---|' * len(header) + '\n')
+        for r in rows:
+            f.write('| ' + ' | '.join(fm.format(x) if isinstance(x, (int, float)) else str(x)
+                                      for fm, x in zip(fmt, r)) + ' |\n')
+    print(f'  -> {name}.md, {name}.csv')
+
+
+# ==============================================================================
+# Transition lines (fig1, tab-special, tab-accuracy)
+# ==============================================================================
+
+def lines():
+    """Transition lines on the whole range; cached in output/lines.json (rebuilt per mode)."""
+    path = os.path.join(OUT, 'lines.json')
+    nL, n_mu = (60, 200) if QUICK else (400, 400)
+    if os.path.exists(path):
+        with open(path) as f:
+            d = json.load(f)
+        if d.get('nL') == nL and d.get('n_mu') == n_mu:
+            return d
+    t = time.time()
+    d = trace_lines(np.linspace(*L_RANGE, nL), G, *MU_RANGE, n_mu)
+    d.update(nL=nL, n_mu=n_mu)
+    with open(path, 'w') as f:
+        json.dump(d, f, indent=1)
+    print(f'  transition lines: {nL} values of L, {time.time() - t:.0f} s')
+    return d
+
+
+def _draw_lines(ax, d, mu_lim, L_lim):
+    style = {2: dict(color='tab:red', lw=1.8)}
+    for key, pts in d['lines'].items():
+        a, b = key.split('-')
+        for order in (1, 2):
+            sel = sorted((p for p in pts if p['order'] == order), key=lambda p: p['L'])
+            if not sel:
+                continue
+            Ls = np.array([p['L'] for p in sel]); ms = np.array([p['mu'] for p in sel])
+            step = (L_RANGE[1] - L_RANGE[0]) / (d['nL'] - 1)
+            st = style.get(order) or dict(
+                color='tab:orange' if (a == 'V' and b != 'T') else 'tab:blue' if b != 'T' else 'k', lw=1.4)
+            for seg in np.split(np.arange(len(Ls)), np.nonzero(np.diff(Ls) > 2.5 * step)[0] + 1):
+                ax.plot(Ls[seg], ms[seg], **st)
+    for n in range(1, 40):                                  # mode thresholds mu = 2 pi n / L
+        L = np.linspace(*L_lim, 400)
+        ax.plot(L, 2 * np.pi * n / L, ':', color='0.6', lw=0.7)
+    pk = [s for s in d['special'] if s['kind'] == 'peak']
+    ce = [s for s in d['special'] if s['kind'] == 'critical_end' and s.get('mu') is not None]
+    ax.plot([s['L'] for s in pk], [s['mu'] for s in pk], '^', ms=6, color='tab:orange', mec='k', mew=0.6,
+            ls='none', label='peak')
+    ax.plot([s['L'] for s in ce], [s['mu'] for s in ce], 'o', ms=5, color='tab:cyan', mec='k', mew=0.6,
+            ls='none', label='critical end point')
+    ax.set_xlim(*L_lim); ax.set_ylim(*mu_lim)
+    ax.set_xlabel('$L$'); ax.set_ylabel(r'$\mu$')
+
+
+def fig1():
+    print('fig1: transition lines')
+    d = lines()
+    fig, axes = plt.subplots(2, 1, figsize=(7.0, 8.0), gridspec_kw=dict(height_ratios=[1.3, 1]))
+    _draw_lines(axes[0], d, MU_RANGE, L_RANGE)
+    _draw_lines(axes[1], d, (2.5, 4.0), L_RANGE)
+    for x, y, t in [(8.5, 1.5, '$V$'), (8.5, 5.5, '$T$')]:
+        axes[0].text(x, y, t, fontsize=13)
+    axes[0].legend(loc='upper right', fontsize=8)
+    axes[0].set_title('Transition lines at $b=0$, $g=-1$: black — first order (to $T$), red — second order,\n'
+                      'orange — $V$–$I_0$, blue — $I_n$–$I_{n+1}$; dotted — mode thresholds $\\mu=2\\pi n/L$',
+                      fontsize=9)
+    save(fig, 'fig1_transition_lines')
+
+
+def tab_special():
+    print('tab-special: special points')
+    d = lines()
+    rows = []
+    for s in d['special']:
+        if s['kind'] == 'tricritical':
+            continue
+        name = (f"peak n = {s['n']}" if s['kind'] == 'peak'
+                else 'critical end point (birth of I_{})'.format(sum(
+                    1 for x in d['special'] if x['kind'] == 'critical_end' and x['L'] < s['L'])))
+        rows.append((name, s['L'], s['mu'] if s.get('mu') is not None else float('nan')))
+    write_table('tab_special_points', ['point', 'L', 'mu'], rows, ['{}', '{:.10f}', '{:.10f}'])
+
+
+# ==============================================================================
+# fig2: map in the peak region
+# ==============================================================================
+
+def fig2():
+    print('fig2: M*(L, mu) in the peak region')
+    n_mu, n_L = (100, 130) if QUICK else (300, 400)
+    t = time.time()
+    d = compute_grid(np.linspace(3.0, 3.4, n_mu), np.linspace(2.0, 10.0, n_L), G)
+    print(f'  grid {n_mu}×{n_L}: {time.time() - t:.0f} s')
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    im = ax.pcolormesh(d['L'], d['mu'], d['M_star'].T, cmap='viridis', shading='auto', vmin=0, vmax=3.5)
+    fig.colorbar(im, ax=ax, label='$M^*$', extend='max')
+    pk = [(L, mu) for n, L, mu in peaks(G, 10.0) if 2 <= L <= 10]
+    ax.plot(*zip(*pk), '^', ms=6, color='tab:orange', mec='k', mew=0.6, ls='none', label='peak (explicit formula)')
+    ax.set_xlabel('$L$'); ax.set_ylabel(r'$\mu$'); ax.legend(loc='upper right', fontsize=8)
+    ax.set_title(r'Global minimum $M^*(L,\mu)$ at $b=0$, $g=-1$; yellow — vacuum phase', fontsize=9)
+    save(fig, 'fig2_peak_region')
+
+
+# ==============================================================================
+# fig3: closed form against direct integration
+# ==============================================================================
+
+def _s(x):
+    return -quad(lambda t: math.log(-math.expm1(-math.sqrt(t * t + x * x))), 0, math.inf, limit=200)[0]
+
+
+def _omega_direct(M, mu, L):
+    """Omega(M) from the defining integrals (adaptive quadrature), up to an M-independent constant."""
+    oL = 4 / (math.pi**2 * L**2) * quad(lambda p: _s(L * math.sqrt(M * M + p * p)), 0, math.inf,
+                                         limit=200, epsabs=1e-13, epsrel=1e-12)[0]
+    om = 0.0
+    for k, C in F.modes(mu, L):
+        m = math.hypot(M, k)
+        if m < mu:
+            P = math.sqrt(mu * mu - m * m)
+            om += C * 2 * quad(lambda p: mu - math.sqrt(p * p + m * m), 0, P, epsabs=1e-14)[0]
+    return M * M / (2 * G) + F.dU(M) + oL - om / (math.pi * L)
+
+
+def fig3():
+    print('fig3: G(M), closed form against direct integration')
+    mu, L = 3.2, 1.0
+    Ms = np.geomspace(1e-4, 3.0, 14 if QUICK else 30)
+    Gn = []
+    for M in Ms:
+        h = 1e-4 * M
+        Gn.append((_omega_direct(M + h, mu, L) - _omega_direct(M - h, mu, L)) / (2 * h) / M)
+    Gn = np.array(Gn)
+    Mf = np.geomspace(1e-5, 3.0, 400)
+    Ga = F.gap_G_vec(Mf, mu, L, G)
+    fig, axes = plt.subplots(2, 1, figsize=(6.5, 6.0), sharex=True)
+    axes[0].semilogx(Mf, Ga, '-', color='tab:blue', lw=1.8, label='closed form')
+    lo, hi = Ga.min() - 0.15, Ga.max() + 0.15
+    inside = (Gn >= lo) & (Gn <= hi)
+    axes[0].semilogx(Ms[inside], Gn[inside], 'o', ms=4, mfc='none', color='tab:red',
+                     label='finite differences of direct integration')
+    axes[0].semilogx(Ms[~inside], np.full((~inside).sum(), lo + 0.02), 'v', ms=5, color='tab:red',
+                     label='same, off scale (cancellation noise)')
+    axes[0].set_ylim(lo, hi)
+    axes[0].axhline(0, color='0.5', lw=0.7); axes[0].set_ylabel('$G(M)$'); axes[0].legend(fontsize=8)
+    axes[0].set_title(rf'$b=0$, $\mu={mu}$, $L={L}$, $g=-1$', fontsize=9)
+    axes[1].loglog(Ms, np.abs(Gn - F.gap_G_vec(Ms, mu, L, G)), 'o-', ms=4, color='tab:red')
+    axes[1].set_xlabel('$M$'); axes[1].set_ylabel('|difference|')
+    save(fig, 'fig3_gap_closed_vs_direct')
+
+
+# ==============================================================================
+# tab-accuracy: double precision against mpmath (50 digits)
+# ==============================================================================
+
+def tab_accuracy():
+    print('tab-accuracy: against mpmath (50 digits)')
+    rng = np.random.default_rng(12345)
+    n = 300 if QUICK else 3000
+    names = ['M -> 0', '0 < M < mu', 'near a threshold', 'M > mu']
+    eG, eO, eOc = ([[] for _ in range(4)] for _ in range(3))
+    eG0 = []
+    for _ in range(n):
+        mu = float(rng.uniform(0.1, 7.0))
+        L = float(np.exp(rng.uniform(np.log(0.05), np.log(10.0))))
+        kind = int(rng.integers(4))
+        if kind == 0:
+            M = float(np.exp(rng.uniform(np.log(1e-12), np.log(1e-2))))
+        elif kind == 1:
+            M = float(rng.uniform(0.0, mu))
+        elif kind == 2:
+            S = F.thresholds(mu, L)
+            M = S[int(rng.integers(len(S)))] * (1.0 + float(rng.choice([-1, 1])) * 10.0 ** rng.uniform(-12, -2))
+        else:
+            M = float(rng.uniform(mu, mu + 5.0))
+        if M <= 0:
+            continue
+        eG[kind].append(abs(F.gap_G(M, mu, L, G) - float(R.G(M, mu, L, G))))
+        ref = float(R.omega_rel(M, mu, L, G))
+        eO[kind].append(abs(F.omega_rel(M, mu, L, G) - ref))
+        eOc[kind].append(abs(F.omega_rel_closed(M, mu, L, G) - ref) / max(abs(ref), 1e-300))
+        eG0.append(abs(F.gap_G0(mu, L, G) - float(R.G0(mu, L, G))))
+    rows = [(names[k], len(eG[k]), max(eG[k]), max(eO[k]), max(eOc[k])) for k in range(4) if eG[k]]
+    rows.append(('G(0+)', len(eG0), max(eG0), float('nan'), float('nan')))
+
+    # roots of G
+    m = 60 if QUICK else 400
+    er, nr = 0.0, 0
+    for _ in range(m):
+        mu = float(rng.uniform(0.5, 7.0))
+        L = float(np.exp(rng.uniform(np.log(0.1), np.log(10.0))))
+        for r, kind in isolate_roots(mu, L, G):
+            if kind == 'touch':
+                continue
+            try:
+                er = max(er, abs(r - float(R.root_near(r, mu, L, G))))
+                nr += 1
+            except ValueError:
+                pass
+    rows.append((f'roots of G ({m} points)', nr, er, float('nan'), float('nan')))
+
+    # analytic lines
+    Ls = [0.3, 0.7, 1.0, 1.5, 2.0, 3.0, 4.5, 6.0, 8.0, 10.0][:: 3 if QUICK else 1]
+    with mp.workdps(50):
+        es = max(abs(mu_stability(L, G) - float(mp.findroot(lambda x: R.G0(x, L, G), mp.mpf(mu_stability(L, G)))))
+                 for L in Ls)
+        LV = [0.2, 0.5, 1.0]
+        ev = []
+        for L in LV:
+            Mv = mp.findroot(lambda M: R.G(M, 1e-30, L, G), mp.mpf(M_vacuum(L, G)))
+            ev.append(abs(mu_VT(L, G) - float(mp.findroot(lambda x: R.omega_rel(Mv, x, L, G), mp.mpf(mu_VT(L, G))))))
+    rows.append((f'mu_s(L) ({len(Ls)} values)', len(Ls), es, float('nan'), float('nan')))
+    rows.append((f'mu_VT(L) ({len(LV)} values)', len(LV), max(ev), float('nan'), float('nan')))
+
+    # first-order lines from the tracing
+    d = lines()
+    ef, nf = [], 0
+    for key, pts in d['lines'].items():
+        sel = [p for p in pts if p['order'] == 1]
+        for p in sel[:: max(1, len(sel) // (2 if QUICK else 4))][: 2 if QUICK else 4]:
+            try:
+                ef.append(abs(p['mu'] - _mp_first_order(p['L'], p['mu'], p['M_left'], p['M_right'])))
+                nf += 1
+            except ValueError:
+                pass
+    rows.append(('first-order lines (traced)', nf, max(ef) if ef else float('nan'), float('nan'), float('nan')))
+    write_table('tab_accuracy', ['quantity', 'N', 'max |error| of G or position',
+                                 'max |error| of Omega(M)-Omega(0), stable form',
+                                 'max rel. error of the closed-form difference'],
+                rows, ['{}', '{:d}', '{:.1e}', '{:.1e}', '{:.1e}'])
+
+
+def _mp_first_order(L, mu0, M_left, M_right):
+    """First-order transition in mpmath: Omega on the two branches is equal (M = 0 is phase T)."""
+    with mp.workdps(50):
+        def branch(Mg, mu):
+            return mp.mpf(0) if Mg == 0.0 else R.root_near(Mg, mu, L, G)
+
+        def f(mu):
+            a, b = branch(M_left, mu), branch(M_right, mu)
+            return ((R.omega_rel(a, mu, L, G) if a != 0 else 0) - (R.omega_rel(b, mu, L, G) if b != 0 else 0))
+        for w in ('1e-10', '1e-8'):
+            a, b = mp.mpf(mu0) - mp.mpf(w), mp.mpf(mu0) + mp.mpf(w)
+            if f(a) * f(b) < 0:
+                return float(mp.findroot(f, (a, b), solver='anderson'))
+    raise ValueError('no sign change near the transition')
+
+
+# ==============================================================================
+# tab-scan: certified search against a grid scan
+# ==============================================================================
+
+def tab_scan():
+    print('tab-scan: certified search against a grid scan')
+    MU = np.linspace(*MU_RANGE, 70 if QUICK else 279)
+    L = np.linspace(*L_RANGE, 50 if QUICK else 250)
+    n_s, n_c, d_om = (np.zeros((len(L), len(MU))) for _ in range(3))
+    ts = tc = 0.0
+    for i, l in enumerate(L):
+        for j, mu in enumerate(MU):
+            t = time.perf_counter(); Ms, Os, ms = find_minimum_scan(mu, l, G); ts += time.perf_counter() - t
+            t = time.perf_counter(); Mc, Oc, mc = find_minimum(mu, l, G); tc += time.perf_counter() - t
+            n_s[i, j], n_c[i, j], d_om[i, j] = len(ms), len(mc), Os - Oc
+    N = n_s.size
+    rows = [('grid points', N, ''),
+            ('scan misses a local minimum', int((n_c > n_s).sum()), f'{100 * (n_c > n_s).mean():.2f} %'),
+            ('scan finds a spurious minimum', int((n_s > n_c).sum()), ''),
+            ('wrong global minimum (|dOmega| > 1e-12)', int((np.abs(d_om) > 1e-12).sum()),
+             f'max |dOmega| = {np.abs(d_om).max():.1e}'),
+            ('time per point, scan (600-point grid + Brent)', f'{ts / N * 1e3:.2f} ms', ''),
+            ('time per point, certified', f'{tc / N * 1e3:.2f} ms', '')]
+    write_table('tab_scan_vs_certified', ['quantity', 'value', 'comment'], rows, ['{}', '{}', '{}'])
+
+
+# ==============================================================================
+
+TARGETS = {'fig1': fig1, 'fig2': fig2, 'fig3': fig3, 'tab-special': tab_special,
+           'tab-accuracy': tab_accuracy, 'tab-scan': tab_scan}
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    chosen = [a for a in sys.argv[1:] if not a.startswith('--')] or list(TARGETS)
+    for a in chosen:
+        if a not in TARGETS:
+            sys.exit(f'unknown target {a!r}; choose from {", ".join(TARGETS)}')
+    t0 = time.time()
+    for a in chosen:
+        t = time.time()
+        TARGETS[a]()
+        print(f'  [{a}: {time.time() - t:.0f} s]')
+    print(f'done in {time.time() - t0:.0f} s; output in {OUT}')
+
+
+if __name__ == '__main__':
+    main()
