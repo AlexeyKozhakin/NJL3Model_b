@@ -14,7 +14,7 @@ Targets:
     tab-scan      certified search against a grid scan: missed minima and timing
     tab-perf      performance: single operations, a map, the lines; JS core in Node.js
 
-Output: paper/output/ (PNG and PDF figures, Markdown and CSV tables, lines.json).
+Output: paper/output/ (PNG and PDF figures; tables as Markdown, CSV and LaTeX; lines.json).
 Coupling g = -1 throughout.
 """
 
@@ -65,7 +65,20 @@ def write_table(name, header, rows, fmt):
         for r in rows:
             f.write('| ' + ' | '.join(fm.format(x) if isinstance(x, (int, float)) else str(x)
                                       for fm, x in zip(fmt, r)) + ' |\n')
-    print(f'  -> {name}.md, {name}.csv')
+    # LaTeX: body of a tabular (header + rows), for \\input in the manuscript
+    def tex(x, fm):
+        v = fm.format(x) if isinstance(x, (int, float)) else str(x)
+        if v == 'nan':
+            return '--'
+        m = __import__('re').fullmatch(r'([-+]?\d+(?:\.\d+)?)e([-+]\d+)', v)
+        if m:
+            return f'${m.group(1)}\\times10^{{{int(m.group(2))}}}$'
+        return v.replace('_', r'\_').replace('%', r'\%').replace('µ', r'$\mu$').replace('×', r'$\times$')
+    with open(os.path.join(OUT, f'{name}.tex'), 'w') as f:
+        f.write(' & '.join(tex(h, '{}') for h in header) + r' \\ \hline' + '\n')
+        for r in rows:
+            f.write(' & '.join(tex(x, fm) for fm, x in zip(fmt, r)) + r' \\' + '\n')
+    print(f'  -> {name}.md, {name}.csv, {name}.tex')
 
 
 # ==============================================================================
