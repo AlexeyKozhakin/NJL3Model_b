@@ -2,9 +2,9 @@ name: tests
 
 on:
   push:
-    paths: ['njl3/**', 'tests/b0/**', 'tests/full/**', 'web/b0/**', 'web/full/**', 'functions/**', 'examples/**', 'paper/**', 'pyproject.toml', '.github/workflows/tests-b0.yml']
+    paths: ['njl3/**', 'tests/b0/**', 'tests/full/**', 'tests/inf/**', 'web/b0/**', 'web/full/**', 'functions/**', 'examples/**', 'paper/**', 'pyproject.toml', '.github/workflows/tests-b0.yml']
   pull_request:
-    paths: ['njl3/**', 'tests/b0/**', 'tests/full/**', 'web/b0/**', 'web/full/**', 'functions/**', 'examples/**', 'paper/**', 'pyproject.toml', '.github/workflows/tests-b0.yml']
+    paths: ['njl3/**', 'tests/b0/**', 'tests/full/**', 'tests/inf/**', 'web/b0/**', 'web/full/**', 'functions/**', 'examples/**', 'paper/**', 'pyproject.toml', '.github/workflows/tests-b0.yml']
 
 jobs:
   test:
@@ -25,6 +25,8 @@ jobs:
         run: pytest tests/b0 -q
       - name: Tests (M, b) (Python, JS port)
         run: pytest tests/full -q
+      - name: Tests L -> infinity
+        run: pytest tests/inf -q
 
   # njl3.b0 as a referee installs it: clean environment, no numba, no research code
   b0-matrix:
