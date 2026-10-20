@@ -6,6 +6,7 @@
 70_inf_Mstar.png      — M*(mu), b*(mu) при L = ∞ и M*(mu) задачи на R²×S¹ при L = 5, 10, 20, 40
 70_inf_omega_b0.png   — Omega(M) - Omega(0) при b = 0 для нескольких mu (плоский потенциал при mu = π)
 70_inf_b_map.png      — Omega(M, b) - Omega(M, 0) при mu = 4: нуль при b ≤ mu - M, рост вне
+70_inf_minima_set.png — множество глобальных минимумов в плоскости (M, b): mu < π, mu = π, mu > π
 """
 
 import math
@@ -83,5 +84,28 @@ def fig_b_map():
     fig.tight_layout(); fig.savefig(os.path.join(OUT, '70_inf_b_map.png'), dpi=150); plt.close(fig)
 
 
+def fig_minima_set():
+    from matplotlib.patches import Polygon
+    fig, axes = plt.subplots(1, 3, figsize=(12, 3.8), sharey=True)
+    for ax, (mu, title) in zip(axes, ((2.5, '$\\mu<\\pi$ (вакуум)'), (PI, '$\\mu=\\pi$ (точка перехода)'),
+                                     (4.0, '$\\mu>\\pi$ (тривиальная фаза)'))):
+        if mu < PI:
+            ax.plot([PI], [0], 'o', ms=9, color='tab:blue')
+            ax.annotate('$(M^*,b^*)=(\\pi,0)$', (PI, 0), (1.3, 1.2), fontsize=9, arrowprops=dict(arrowstyle='->'))
+        elif mu == PI:
+            ax.add_patch(Polygon([[0, 0], [PI, 0], [0, PI]], closed=True, color='tab:blue', alpha=0.35))
+            ax.plot([0, PI], [PI, 0], '--', color='tab:blue', lw=1)
+            ax.plot([0, 0], [PI, 4.5], '-', color='tab:blue', lw=4, solid_capstyle='butt')
+            ax.text(0.5, 0.8, 'все точки\nс $b\\leq\\pi-M$', fontsize=9)
+        else:
+            ax.plot([0, 0], [0, 4.5], '-', color='tab:blue', lw=4, solid_capstyle='butt')
+            ax.text(0.25, 2.2, '$M^*=0$,\n$b$ любое', fontsize=9)
+        ax.set_xlim(-0.2, 4.0); ax.set_ylim(-0.2, 4.5)
+        ax.set_xlabel('$M$'); ax.set_title(title, fontsize=10); ax.grid(alpha=0.3)
+    axes[0].set_ylabel('$b$')
+    fig.suptitle('$L=\\infty$, $g=-1$: множество глобальных минимумов $\\Omega(M,b)$', fontsize=11)
+    fig.tight_layout(); fig.savefig(os.path.join(OUT, '70_inf_minima_set.png'), dpi=150); plt.close(fig)
+
+
 if __name__ == '__main__':
-    fig_Mstar(); fig_omega_b0(); fig_b_map()
+    fig_Mstar(); fig_omega_b0(); fig_b_map(); fig_minima_set()
