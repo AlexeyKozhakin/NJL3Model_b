@@ -5,6 +5,7 @@ Reproduce every figure and table of the paper on the b = 0 phase diagram (njl3.b
     python paper/reproduce.py --quick      # smaller grids and samples (~1-2 min), same outputs
     python paper/reproduce.py fig1 tab-accuracy   # selected targets
     python paper/reproduce.py --ru --bw    # Russian labels, greyscale figures 16 cm wide (journal version)
+    python paper/reproduce.py --ru --print # same, in colour but readable in greyscale print
 
 Targets:
     fig1          transition lines: whole range and the strip mu in [2.5, 4]
@@ -16,7 +17,7 @@ Targets:
     tab-perf      performance: single operations, a map, the lines; JS core in Node.js
 
 Output: paper/output/ (PNG and PDF figures; tables as Markdown, CSV and LaTeX; lines.json).
-With --ru / --bw the file names get the suffixes _ru / _bw.
+With --ru / --bw / --print the file names get the suffixes _ru / _bw / _print.
 Coupling g = -1 throughout.
 """
 
@@ -49,7 +50,9 @@ G = -1.0
 QUICK = '--quick' in sys.argv
 RU = '--ru' in sys.argv          # Russian labels and table texts
 BW = '--bw' in sys.argv          # greyscale figures (line styles and markers instead of colours), 16 cm wide
-SUF = ('_ru' if RU else '') + ('_bw' if BW else '')
+PRINT = '--print' in sys.argv    # colour figures that stay readable in greyscale print (colour + line styles)
+JR = BW or PRINT                 # journal layout: line styles and markers, 16 cm wide, no titles
+SUF = ('_ru' if RU else '') + ('_bw' if BW else '_print' if PRINT else '')
 
 
 def tx(en, ru):
@@ -61,7 +64,7 @@ def tx(en, ru):
 C = dict(first='k', second='tab:red', vi='tab:orange', ii='tab:blue', thr='0.6', peak='tab:orange',
          cep='tab:cyan', curve='tab:blue', points='tab:red') if not BW else \
     dict(first='k', second='k', vi='0.35', ii='0.35', thr='0.75', peak='white', cep='k', curve='k', points='k')
-FIGW = 6.3 if BW else None       # text width of the journal page (A4, margins 2.5 cm)
+FIGW = 6.3 if JR else None       # text width of the journal page (A4, margins 2.5 cm)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'output')
 MU_RANGE, L_RANGE = (0.05, 7.0), (0.1, 10.0)
 plt.rcParams.update({'font.size': 10, 'axes.linewidth': 0.8, 'savefig.bbox': 'tight'})
@@ -127,7 +130,7 @@ def lines():
 
 
 def _draw_lines(ax, d, mu_lim, L_lim):
-    style = {2: dict(color=C['second'], lw=1.8, ls='--' if BW else '-')}
+    style = {2: dict(color=C['second'], lw=1.8, ls='--' if JR else '-')}
     for key, pts in d['lines'].items():
         a, b = key.split('-')
         for order in (1, 2):
@@ -141,14 +144,14 @@ def _draw_lines(ax, d, mu_lim, L_lim):
             elif b == 'T':
                 st = dict(color=C['first'], lw=1.4)
             elif a == 'V':
-                st = dict(color=C['vi'], lw=1.4, ls='-.' if BW else '-')
+                st = dict(color=C['vi'], lw=1.4, ls='-.' if JR else '-')
             else:
-                st = dict(color=C['ii'], lw=1.4, ls=(0, (1, 1)) if BW else '-')
+                st = dict(color=C['ii'], lw=1.4, ls=(0, (1, 1)) if JR else '-')
             for seg in np.split(np.arange(len(Ls)), np.nonzero(np.diff(Ls) > 2.5 * step)[0] + 1):
                 ax.plot(Ls[seg], ms[seg], **st)
     for n in range(1, 40):                                  # mode thresholds mu = 2 pi n / L
         L = np.linspace(*L_lim, 400)
-        ax.plot(L, 2 * np.pi * n / L, '-' if BW else ':', color=C['thr'], lw=0.5 if BW else 0.7)
+        ax.plot(L, 2 * np.pi * n / L, '-' if JR else ':', color=C['thr'], lw=0.5 if JR else 0.7)
     pk = [s for s in d['special'] if s['kind'] == 'peak']
     ce = [s for s in d['special'] if s['kind'] == 'critical_end' and s.get('mu') is not None]
     ax.plot([s['L'] for s in pk], [s['mu'] for s in pk], '^', ms=6, color=C['peak'], mec='k', mew=0.8,
@@ -169,7 +172,7 @@ def fig1():
     for x, y, t in [(8.5, 1.5, '$V$'), (8.5, 5.5, '$T$')]:
         axes[0].text(x, y, t, fontsize=13)
     axes[0].legend(loc='upper right', fontsize=8)
-    if not BW:                       # in the journal version the legend of line types is in the caption
+    if not JR:                       # in the journal version the legend of line types is in the caption
         axes[0].set_title(tx('Transition lines at $b=0$, $g=-1$: black — first order (to $T$), red — second order,\n'
                             'orange — $V$–$I_0$, blue — $I_n$–$I_{n+1}$; dotted — mode thresholds $\\mu=2\\pi n/L$',
                             'Линии переходов при $b=0$, $g=-1$: чёрные — 1-го рода (в $T$), красные — 2-го рода,\n'
@@ -205,13 +208,13 @@ def fig2():
     print(f'  grid {n_mu}×{n_L}: {time.time() - t:.0f} s')
     fig, ax = plt.subplots(figsize=(FIGW or 7.5, 4.5 * (FIGW or 7.5) / 7.5))
     im = ax.pcolormesh(d['L'], d['mu'], d['M_star'].T, cmap='Greys' if BW else 'viridis', shading='auto',
-                       vmin=0, vmax=3.5)
+                       vmin=0, vmax=3.5, rasterized=True)     # raster map inside the vector PDF (no seams)
     fig.colorbar(im, ax=ax, label='$M^*$', extend='max')
     pk = [(L, mu) for n, L, mu in peaks(G, 10.0) if 2 <= L <= 10]
     ax.plot(*zip(*pk), '^', ms=6, color=C['peak'], mec='k', mew=0.8, ls='none',
             label=tx('peak (explicit formula)', 'пик (явная формула)'))
     ax.set_xlabel('$L$'); ax.set_ylabel(r'$\mu$'); ax.legend(loc='upper right', fontsize=8)
-    if not BW:
+    if not JR:
         ax.set_title(tx(r'Global minimum $M^*(L,\mu)$ at $b=0$, $g=-1$; yellow — vacuum phase',
                        r'Глобальный минимум $M^*(L,\mu)$ при $b=0$, $g=-1$; жёлтое — вакуумная фаза'), fontsize=9)
     save(fig, 'fig2_peak_region')
@@ -260,7 +263,7 @@ def fig3():
                      label=tx('same, off scale (cancellation noise)', 'то же, вне шкалы (шум сокращения)'))
     axes[0].set_ylim(lo, hi)
     axes[0].axhline(0, color='0.5', lw=0.7); axes[0].set_ylabel('$G(M)$'); axes[0].legend(fontsize=8)
-    if not BW:
+    if not JR:
         axes[0].set_title(rf'$b=0$, $\mu={mu}$, $L={L}$, $g=-1$', fontsize=9)
     axes[1].loglog(Ms, np.abs(Gn - F.gap_G_vec(Ms, mu, L, G)), 'o-', ms=4, color=C['points'])
     axes[1].set_xlabel('$M$'); axes[1].set_ylabel(tx('|difference|', '|разность|'))
@@ -481,7 +484,7 @@ def tab_perf():
                      tx('the web app runs this in background workers', 'так считает веб-приложение')))
     env = (f"{platform.processor() or platform.machine()}, {os.cpu_count()} cores; Python {platform.python_version()}, "
            f"NumPy {np.__version__}, SciPy {scipy.__version__}, mpmath {mp.__version__}")
-    rows.append((tx('machine', 'компьютер'), env, ''))
+    rows.append((tx('machine', 'компьютер'), '', env))
     write_table('tab_performance', [tx('operation', 'Операция'), tx('time', 'Время'), tx('comment', 'Комментарий')],
                 rows, ['{}', '{}', '{}'])
 
