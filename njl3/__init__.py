@@ -1,3 +1,3 @@
-"""NJL3: фазовая структура модели Намбу–Йона-Лазинио в 2+1 измерениях на R² × S¹."""
+"""NJL3: phase structure of the Nambu–Jona-Lasinio model in 2+1 dimensions on R² × S¹."""
 
 __version__ = '0.1.0'
