@@ -95,6 +95,25 @@
     </aside>
   </main>
 
+  <section class="card slices-card" aria-live="polite">
+    <h2>Срезы через точку</h2>
+    <div class="slices">
+      <div>
+        <h3 id="slice-mu-title">M*(μ) при фиксированном L</h3>
+        <div id="chart-slice-mu" class="chart chart-slice"></div>
+        <table id="slice-mu-table" class="point-table slice-table"></table>
+      </div>
+      <div>
+        <h3 id="slice-L-title">M*(L) при фиксированном μ</h3>
+        <div id="chart-slice-L" class="chart chart-slice"></div>
+        <table id="slice-L-table" class="point-table slice-table"></table>
+      </div>
+    </div>
+    <p class="note">Глобальный минимум M* вдоль прямых через выбранную точку (кружок): слева L фиксировано, справа μ.
+      Вертикальные линии — переходы: положение уточнено бисекцией, род определён по поведению M*
+      (1-й род — скачок, 2-й — непрерывный уход M* в ноль). Буквы — фазы на участках.</p>
+  </section>
+
   <footer class="page-footer">
     <p>
       Модель и метод: замкнутые формулы при b = 0, уравнение щели dΩ/dM = M·G(M), монотонное

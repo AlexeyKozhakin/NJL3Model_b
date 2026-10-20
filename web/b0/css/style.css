@@ -103,6 +103,12 @@ button:disabled { opacity: 0.6; cursor: progress; }
 .chart { width: 100%; }
 .chart-diagram { height: min(72vh, 680px); min-height: 380px; }
 .chart-small { height: 210px; }
+.slices-card { margin-top: 16px; }
+.slices { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 900px) { .slices { grid-template-columns: minmax(0, 1fr); } }
+.chart-slice { height: 300px; }
+.slice-table { margin-top: 6px; font-size: 0.9em; }
+.slices-card .note { color: var(--text-muted); font-size: 0.9em; margin: 8px 0 0; }
 
 .legend-phases { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; color: var(--text-secondary); margin-top: 6px; }
 .export { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

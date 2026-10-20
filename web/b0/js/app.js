@@ -1,5 +1,5 @@
 // Интерфейс: карта M*(L, mu) в фоновых потоках, точные линии переходов, панель точки.
-import { analyzePoint, gapG, omegaRel, thresholds, vacuumMass, peak } from './njl3b0.js';
+import { analyzePoint, findMinimum, gapG, omegaRel, phaseLabel, thresholds, vacuumMass, peak } from './njl3b0.js';
 
 const G = -1.0;
 const $ = (id) => document.getElementById(id);
@@ -180,6 +180,7 @@ function buildGrid() {
   readInputs(); writeHash();
   if (!(state.muHi > state.muLo && state.LHi > state.LLo && state.LLo > 0)) { $('status').textContent = 'Проверьте диапазоны.'; return; }
   const n = state.res;
+  if (lastPoint) drawSlices();                     // срезы — по диапазонам новой карты
   grid = { L: linspace(state.LLo, state.LHi, n), mu: linspace(state.muLo, state.muHi, n) };
   grid.M = grid.mu.map(() => new Array(n).fill(null));
   grid.phase = grid.mu.map(() => new Array(n).fill(''));
@@ -245,6 +246,7 @@ function showPoint(mu, L) {
     <tr><th>Корни G</th><td>${rootsTxt}</td></tr>
     <tr><th>Локальные минимумы</th><td>${minTxt}</td></tr>`;
   drawPointCharts(r, Mv);
+  drawSlices();
   Plotly.restyle('diagram', { x: [[L]], y: [[mu]] }, [document.getElementById('diagram').data.length - 1]);
 }
 
@@ -285,6 +287,86 @@ function drawPointCharts(r, Mv) {
   ], baseLayout(t, { showlegend: false, xaxis: ax('M'),
       yaxis: { ...baseLayout(t).yaxis, range: [Math.min(lo, 0) - pad, Math.max(hi, 0) + pad], zeroline: true, zerolinecolor: t.axis, zerolinewidth: 1.5 },
       shapes: vlines, margin: { l: 64, r: 10, t: 8, b: 40 } }), PLOT_CONFIG);
+}
+
+// ---------------------------------------------------------------------------
+// Срезы через точку: M*(μ) при фиксированном L и M*(L) при фиксированном μ
+// ---------------------------------------------------------------------------
+const SLICE_N = 600;
+
+// M* и фаза вдоль среза; at(x) -> [mu, L]
+function sliceAt(at, x) {
+  const [mu, L] = at(x);
+  const M = findMinimum(mu, L, G).M;
+  return { M, phase: phaseLabel(M, mu, L) };
+}
+
+// все смены фазы вдоль среза: бисекция до 1e-12 (как trace_L в Python), род — по скачку M*
+function sliceTransitions(at, xs, pts) {
+  const out = [];
+  for (let k = 0; k + 1 < xs.length; k++) {
+    let a = xs[k], pa = pts[k].phase;
+    const b0 = xs[k + 1], pb = pts[k + 1].phase;
+    let guard = 0;
+    while (pa !== pb && guard++ < 8) {
+      let lo = a, hi = b0;
+      while (hi - lo > 1e-12 * Math.max(1, Math.abs(hi))) {
+        const c = 0.5 * (lo + hi);
+        if (sliceAt(at, c).phase === pa) lo = c; else hi = c;
+      }
+      const eps = 1e-9 * Math.max(1, Math.abs(hi));
+      const left = sliceAt(at, lo - eps), right = sliceAt(at, hi + eps);
+      const order = Math.abs(left.M - right.M) < 1e-2 ? 2 : 1;
+      out.push({ x: 0.5 * (lo + hi), frm: pa, to: right.phase, order, Ml: left.M, Mr: right.M });
+      a = hi + eps; pa = right.phase;
+    }
+  }
+  return out;
+}
+
+function drawSlice(div, tableId, at, lo, hi, xname, xpoint, title) {
+  const t = tokens();
+  const xs = linspace(lo, hi, SLICE_N);
+  const pts = xs.map((x) => sliceAt(at, x));
+  const tr = sliceTransitions(at, xs, pts);
+  // фаза на участках между переходами: подпись в середине участка
+  const edges = [lo, ...tr.map((q) => q.x), hi];
+  const labels = edges.slice(0, -1).map((e, i) => {
+    const m = 0.5 * (e + edges[i + 1]);
+    return { x: m, phase: sliceAt(at, m).phase };
+  }).filter((q, i) => edges[i + 1] - edges[i] > 0.03 * (hi - lo));
+  const Mmax = Math.max(...pts.map((p) => p.M), 0.1);
+  const own = sliceAt(at, xpoint);
+  Plotly.react(div, [
+    { type: 'scatter', mode: 'lines', x: xs, y: pts.map((p) => p.M), customdata: pts.map((p) => p.phase),
+      line: { color: t.s1, width: 2, shape: 'linear' }, connectgaps: false,
+      hovertemplate: `${xname} = %{x:.6f}<br>M* = %{y:.8f}<br>фаза %{customdata}<extra></extra>` },
+    { type: 'scatter', mode: 'markers', x: [xpoint], y: [own.M], hoverinfo: 'skip',
+      marker: { symbol: 'circle-open', size: 12, color: t.ink, line: { width: 2.5, color: t.ink } } },
+  ], baseLayout(t, {
+    showlegend: false,
+    xaxis: { ...baseLayout(t).xaxis, title: { text: xname }, range: [lo, hi] },
+    yaxis: { ...baseLayout(t).yaxis, title: { text: 'M*' }, range: [0, 1.12 * Mmax] },
+    shapes: tr.map((q) => ({ type: 'line', x0: q.x, x1: q.x, yref: 'paper', y0: 0, y1: 1,
+      line: { color: q.order === 2 ? t.s2 : t.muted, width: 1.2, dash: q.order === 2 ? 'dash' : 'dot' } })),
+    annotations: labels.map((q) => ({ x: q.x, y: 1.02, yref: 'paper', text: q.phase, showarrow: false,
+      font: { color: t.ink2, size: 12 } })),
+    margin: { l: 56, r: 10, t: 22, b: 44 },
+  }), PLOT_CONFIG);
+  $(div === 'chart-slice-mu' ? 'slice-mu-title' : 'slice-L-title').textContent = title;
+  $(tableId).innerHTML = tr.length
+    ? `<tr><th>${xname}</th><th>переход</th><th>род</th><th>M* слева → справа</th></tr>` +
+      tr.map((q) => `<tr><td>${q.x.toFixed(10)}</td><td>${q.frm} → ${q.to}</td><td>${q.order === 2 ? '2-й' : '1-й'}</td>` +
+        `<td>${fmt(q.Ml, 6)} → ${fmt(q.Mr, 6)}</td></tr>`).join('')
+    : '<tr><td>переходов на срезе нет</td></tr>';
+}
+
+function drawSlices() {
+  const { ptMu: mu, ptL: L } = state;
+  drawSlice('chart-slice-mu', 'slice-mu-table', (x) => [x, L], state.muLo, state.muHi, 'μ', mu,
+            `M*(μ) при L = ${L}`);
+  drawSlice('chart-slice-L', 'slice-L-table', (x) => [mu, x], Math.max(state.LLo, 0.01), state.LHi, 'L', L,
+            `M*(L) при μ = ${mu}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -333,7 +415,7 @@ async function main() {
     try { await navigator.clipboard.writeText(location.href); $('status').textContent = 'Ссылка скопирована.'; }
     catch { $('status').textContent = location.href; }
   });
-  const redraw = () => { drawDiagram(); if (lastPoint) drawPointCharts(lastPoint, lastPoint.M_vac); };
+  const redraw = () => { drawDiagram(); if (lastPoint) { drawPointCharts(lastPoint, lastPoint.M_vac); drawSlices(); } };
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
   $('theme').addEventListener('change', () => { state.theme = $('theme').value; writeHash(); applyTheme(); redraw(); });
 }
