@@ -11,6 +11,7 @@ Targets:
     fig1          transition lines: whole range and the strip mu in [2.5, 4]
     fig2          map of M*(L, mu) in the peak region mu in [3, 3.4], L in [2, 10]
     fig3          G(M) from the closed form against finite differences of direct integration
+    fig4          slices M*(mu) at fixed L and M*(L) at fixed mu: phase sequence and order of transitions
     tab-special   special points (critical end points, peaks)
     tab-accuracy  accuracy against mpmath (50 digits): G, Omega, roots, lines
     tab-scan      certified search against a grid scan: missed minima and timing
@@ -40,7 +41,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from njl3.b0 import formulas as F
 from njl3.b0 import reference as R
 from njl3.b0.lines import M_vacuum, compute_grid, mu_stability, mu_VT, peaks, trace_lines
-from njl3.b0.minimize import find_minimum, find_minimum_scan, isolate_roots
+from njl3.b0.minimize import find_minimum, find_minimum_scan, isolate_roots, phase_label
 
 import matplotlib
 matplotlib.use('Agg')
@@ -271,6 +272,87 @@ def fig3():
 
 
 # ==============================================================================
+# fig4: slices through a point
+# ==============================================================================
+
+def _slice(at, xs):
+    """M* and phase along a slice; at(x) -> (mu, L)."""
+    out = []
+    for x in xs:
+        mu, L = at(x)
+        M = find_minimum(mu, L, G)[0]
+        out.append((M, phase_label(M, mu, L)))
+    return out
+
+
+def _slice_transitions(at, xs, pts, tol=1e-12):
+    """Phase changes along a slice: bisection to tol; order 2 if M* is continuous (M* -> 0)."""
+    ph = lambda x: _slice(at, [x])[0]
+    tr = []
+    for k in range(len(xs) - 1):
+        a, pa, b, pb = xs[k], pts[k][1], xs[k + 1], pts[k + 1][1]
+        while pa != pb:
+            lo, hi = a, b
+            while hi - lo > tol * max(1.0, abs(hi)):
+                c = 0.5 * (lo + hi)
+                if ph(c)[1] == pa:
+                    lo = c
+                else:
+                    hi = c
+            eps = 1e-9 * max(1.0, abs(hi))
+            Ml, Mr = ph(lo - eps)[0], ph(hi + eps)
+            tr.append(dict(x=0.5 * (lo + hi), frm=pa, to=Mr[1], order=2 if abs(Ml - Mr[0]) < 1e-2 else 1))
+            a, pa = hi + eps, Mr[1]
+    return tr
+
+
+def _draw_slice(ax, at, lo, hi, n, xlabel, mark):
+    xs = np.linspace(lo, hi, n)
+    pts = _slice(at, xs)
+    tr = _slice_transitions(at, xs, pts)
+    # линия M* с разрывами на переходах 1-го рода
+    M = np.array([p[0] for p in pts])
+    xx, MM = list(xs), list(M)
+    for q in tr:
+        if q['order'] == 1:
+            i = int(np.searchsorted(xx, q['x']))
+            xx.insert(i, q['x']); MM.insert(i, np.nan)
+    ax.plot(xx, MM, '-', color=C['curve'], lw=1.8)
+    for q in tr:
+        ax.axvline(q['x'], color=C['second'] if q['order'] == 2 else C['thr'], lw=1.0,
+                   ls='--' if q['order'] == 2 else ':')
+    edges = [lo] + [q['x'] for q in tr] + [hi]
+    top = np.nanmax(M) * 1.12
+    for a, b in zip(edges[:-1], edges[1:]):
+        if b - a > 0.035 * (hi - lo):
+            m = 0.5 * (a + b)
+            lab = _slice(at, [m])[0][1]
+            lab = f'$I_{{{lab[1:]}}}$' if lab.startswith('I') else f'${lab}$'
+            ax.text(m, top * 0.97, lab, ha='center', va='top', fontsize=10)
+    ax.plot([mark[0]], [mark[1]], 'o', ms=8, mfc='none', mec='k', mew=1.5)
+    ax.set_xlim(lo, hi); ax.set_ylim(0, top)
+    ax.set_xlabel(xlabel); ax.set_ylabel('$M^*$')
+    return tr
+
+
+def fig4():
+    print('fig4: slices M*(mu) at fixed L and M*(L) at fixed mu')
+    mu0, L0 = 3.15, 3.5
+    M0 = find_minimum(mu0, L0, G)[0]
+    fig, axes = plt.subplots(1, 2, figsize=(FIGW or 9.0, 3.4 * (FIGW or 9.0) / 9.0 * 1.35))
+    n = 300 if QUICK else 1200
+    tr1 = _draw_slice(axes[0], lambda x: (x, L0), 2.9, 3.35, n, r'$\mu$', (mu0, M0))
+    tr2 = _draw_slice(axes[1], lambda x: (mu0, x), 0.3, 10.0, n, '$L$', (L0, M0))
+    axes[0].set_title(tx(f'$L={L0}$', f'$L={L0}$'), fontsize=10)
+    axes[1].set_title(tx(rf'$\mu={mu0}$', rf'$\mu={mu0}$'), fontsize=10)
+    fig.tight_layout()
+    save(fig, 'fig4_slices')
+    for name, trs in (('mu', tr1), ('L', tr2)):
+        print(f'  transitions along {name}: ' + ', '.join(f"{q['frm']}->{q['to']} at {q['x']:.10f} ({q['order']})"
+                                                          for q in trs))
+
+
+# ==============================================================================
 # tab-accuracy: double precision against mpmath (50 digits)
 # ==============================================================================
 
@@ -496,7 +578,7 @@ def _texnum(x):
 
 # ==============================================================================
 
-TARGETS = {'fig1': fig1, 'fig2': fig2, 'fig3': fig3, 'tab-special': tab_special,
+TARGETS = {'fig1': fig1, 'fig2': fig2, 'fig3': fig3, 'fig4': fig4, 'tab-special': tab_special,
            'tab-accuracy': tab_accuracy, 'tab-scan': tab_scan,
            'tab-perf': tab_perf}
 
