@@ -60,3 +60,40 @@ def test_b_never_lowers_omega():
             o0 = omega_rel_b0(M, mu, G_)
             for b in np.linspace(0.0, mu + 2.0, 25):
                 assert omega_rel(M, b, mu, G_) >= o0 - 1e-12
+
+
+def test_hilbert_representation():
+    """W from the Hilbert transform of J equals the direct 1D quadrature (all b, also b > mu - M)."""
+    import numpy as np
+    from njl3.inf.formulas import W_hilbert
+    rng = np.random.default_rng(3)
+    for _ in range(60):
+        mu = rng.uniform(0.5, 6.0); M = rng.uniform(0.01, 7.0); b = rng.uniform(0.0, 8.0)
+        assert W_hilbert(M, b, mu) == pytest.approx(W(M, b, mu), abs=1e-12)
+
+
+def test_vacuum_term_as_angular_integral():
+    """(πM/2) ∫_0^π cos φ c|c| dφ = 2π² ΔU(M, b), c = b + M cos φ — the step that cancels ΔU."""
+    import numpy as np
+    from scipy.integrate import quad
+    from njl3.full.formulas import dU
+    for M in (0.3, 1.0, 2.5):
+        for b in (0.0, 0.2, 0.9 * M, M, 1.7 * M, 4.0):
+            t = -b / M
+            pts = [math.acos(t)] if -1 < t < 1 else None
+            I = quad(lambda f: math.cos(f) * (b + M * math.cos(f)) * abs(b + M * math.cos(f)), 0, math.pi,
+                     points=pts, epsabs=1e-14)[0]
+            assert math.pi * M / 2 * I == pytest.approx(2 * math.pi**2 * dU(M, b), abs=1e-12)
+
+
+def test_theorem_excess():
+    """Omega = M²[1/(2g) + mu/(2π)] + C with C ≥ 0, C = 0 iff b + M ≤ mu, C nondecreasing in b."""
+    import numpy as np
+    from njl3.inf.formulas import excess_C
+    rng = np.random.default_rng(4)
+    for _ in range(60):
+        mu = rng.uniform(0.5, 6.0); M = rng.uniform(0.01, 7.0); b = rng.uniform(0.0, 8.0)
+        C = excess_C(M, b, mu)
+        assert omega_rel(M, b, mu, G_) == pytest.approx(M * M * (1 / (2 * G_) + mu / (2 * math.pi)) + C, abs=1e-12)
+        assert C >= -1e-14
+        assert excess_C(M, b + 0.3, mu) >= C - 1e-14

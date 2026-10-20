@@ -90,3 +90,61 @@ def omega_rel(M, b, mu, g):
     if M == 0.0:
         return 0.0
     return M * M / (2.0 * g) + dU(M, b) + W(M, b, mu) - W_b0(0.0, mu)
+
+
+# ==============================================================================
+# Exact representation through the Hilbert transform (proof of the b-independence)
+# ==============================================================================
+#
+# With a = ±E + b the matter term is a convolution, W = -(1/2π²) ∫ w̃(a - b) J(a) da,
+# w̃(x) = |x|/sqrt(x² - M²) θ(|x| > M). Writing w̃ - 1 = (1/π) PV∫_0^π M cos φ /(x - M cos φ) dφ gives
+#     W(M, b) = -mu³/(6π) - (M/(2π³)) ∫_0^π cos φ U(b + M cos φ) dφ,
+# where U(c) = PV∫ J(a)/(a - c) da is the Hilbert transform of J:
+#     U(c) = -2π mu c + (π²/2) c|c|                                          (|c| ≤ mu),
+#     U(c) = -2π mu c + π mu sgn(c) sqrt(c² - mu²) + π c|c| arcsin(mu/|c|)    (|c| > mu).
+# If b + M ≤ mu every argument stays in [-mu, mu], and with (πM/2)∫cos φ c|c| dφ = 2π² ΔU(M, b):
+#     Omega(M, b) - Omega(0, 0) = M² [1/(2g) + mu/(2π)]       (b + M ≤ mu)  — independent of b.
+# In general Omega(M, b) - Omega(0, 0) = M² [1/(2g) + mu/(2π)] + C(M, b), C ≥ 0, C nondecreasing in b.
+
+def hilbert_J(c, mu):
+    """U(c) = PV ∫ J(a)/(a - c) da."""
+    a = abs(c)
+    if a <= mu:
+        return -2.0 * PI * mu * c + 0.5 * PI * PI * c * a
+    return (-2.0 * PI * mu * c + PI * mu * math.copysign(1.0, c) * math.sqrt(c * c - mu * mu)
+            + PI * c * a * math.asin(mu / a))
+
+
+def _phi_kinks(M, b, values):
+    out = []
+    for v in values:
+        t = (v - b) / M
+        if -1.0 < t < 1.0:
+            out.append(math.acos(t))
+    return sorted(out)
+
+
+def W_hilbert(M, b, mu):
+    """W_mu(M, b) from the Hilbert-transform representation (smooth integrand in φ)."""
+    if M == 0.0:
+        return W_b0(0.0, mu)
+    pts = _phi_kinks(M, b, (0.0, mu, -mu))
+    T = quad(lambda f: math.cos(f) * hilbert_J(b + M * math.cos(f), mu), 0.0, PI, points=pts or None,
+             limit=400, epsabs=1e-14, epsrel=1e-13)[0] * M / PI
+    return -mu**3 / (6.0 * PI) - T / (2.0 * PI * PI)
+
+
+def excess_C(M, b, mu):
+    """C(M, b) = Omega(M, b) - Omega(0, 0) - M² [1/(2g) + mu/(2π)] ≥ 0; zero iff b + M ≤ mu."""
+    if M == 0.0 or b + M <= mu:
+        return 0.0
+
+    def delta(c):                                   # U(c) minus its |c| ≤ mu form
+        a = abs(c)
+        if a <= mu:
+            return 0.0
+        return (1.0 if c > 0 else -1.0) * PI * (mu * math.sqrt(c * c - mu * mu) - c * c * math.acos(mu / a))
+    pts = _phi_kinks(M, b, (mu, -mu))
+    I = quad(lambda f: math.cos(f) * delta(b + M * math.cos(f)), 0.0, PI, points=pts or None, limit=400,
+             epsabs=1e-14, epsrel=1e-13)[0]
+    return -M * I / (2.0 * PI**3)
