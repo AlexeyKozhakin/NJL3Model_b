@@ -145,6 +145,8 @@ pytest tests/b0                   # all, incl. direct numerical integration and 
 | `njl3/b0/` | package for $b=0$: `formulas`, `minimize`, `lines`, `reference` (mpmath), `cli` |
 | `tests/b0/` | tests of the package |
 | `web/b0/` | web application: phase diagram at $b=0$ |
+| `njl3/stab/`, `tests/stab/` | stability of the homogeneous GN solution: second variation $\Phi(k, q_1)$ |
+| `web/stab/` | web application: stability map and $\Phi(q_1)$ at a point (<https://alexeykozhakin.github.io/NJL3Model_b/web/stab/>) |
 | `njl3/full/`, `web/full/`, `tests/full/` | general case $(M,b)$ (work in progress) |
 | `functions/`, `gpu/` | earlier numerical integrators for $(M,b)$ (CPU/numba, PyTorch) |
 | `web/` | earlier web calculator for the general case (JavaScript) |

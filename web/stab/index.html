@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ГН на ℝ²×S¹: устойчивость однородной фазы</title>
+  <meta name="description" content="Вторая вариация Φ(k, q₁) действия модели Гросса — Невё на R²×S¹ вокруг однородного решения: карта устойчивости по (μ, L) и кривые Φ(q₁) в любой точке.">
+  <link rel="stylesheet" href="../b0/css/style.css">
+  <link rel="stylesheet" href="css/stab.css">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+<div class="viz-root">
+  <header class="page-header">
+    <h1>Модель ГН на ℝ²×S¹: устойчивость однородного решения</h1>
+    <p class="lead">
+      Однородное решение M*(μ, L) (статья 1, φ = 0, g = −1) проверяется на устойчивость к неоднородной
+      флуктуации δσ ∝ e<sup>iq₁x₁</sup>·e<sup>i2πkx₂/L</sup>. Вторая вариация действия Φ(k, q₁) &lt; 0 означает, что
+      однородная фаза неустойчива. Карта: минимум Φ по q₁ ∈ (0, 10] (и по k). Кликните по карте —
+      справа появятся кривые Φ(q₁) в этой точке, они считаются прямо в браузере.
+    </p>
+  </header>
+
+  <section class="controls" aria-label="Параметры">
+    <span class="presets">
+      <button data-region="full" class="primary">Вся область</button>
+      <button data-region="peaks">Пики (μ ∈ [3, 3.4], L ∈ [2, 10])</button>
+    </span>
+    <label>Что показывать
+      <select id="quantity">
+        <option value="phi_min">min Φ по q₁ и k, T = 10⁻³</option>
+        <option value="phi_min_k0">min Φ по q₁, только k = 0, T = 10⁻³</option>
+        <option value="T0">min Φ при T = 0 (−∞ отмечено)</option>
+        <option value="k">k* — самая неустойчивая мода, T = 10⁻³</option>
+      </select>
+    </label>
+    <span class="toggles">
+      <label><input id="show-lines" type="checkbox" checked> границы фаз V / I / T</label>
+      <label>Тема
+        <select id="theme">
+          <option value="auto">как в системе</option>
+          <option value="light">светлая</option>
+          <option value="dark">тёмная</option>
+        </select>
+      </label>
+    </span>
+  </section>
+  <p id="status" class="status" role="status"></p>
+
+  <main class="layout">
+    <section class="card diagram-card">
+      <div id="diagram" class="chart chart-diagram"></div>
+      <div class="legend-phases">
+        <span><b>синее</b> — Φ &gt; 0 при всех q₁, k: однородная фаза устойчива</span>
+        <span><b>красное</b> — есть q₁ с Φ &lt; 0: неустойчива</span>
+        <span><b>серое</b> — фаза M* = 0 (формула с уравнением щели неприменима)</span>
+      </div>
+      <div class="export">
+        <button id="copy-link">Скопировать ссылку на вид</button>
+      </div>
+    </section>
+
+    <aside class="card point-card" aria-live="polite">
+      <h2>Точка</h2>
+      <form id="point-form" class="point-form">
+        <label>μ <input id="pt-mu" type="number" step="0.001" value="3.3"></label>
+        <label>L <input id="pt-L" type="number" step="0.001" value="2" min="0.05"></label>
+        <label>k до <input id="pt-kmax" type="number" step="1" value="3" min="0" max="20"></label>
+        <button type="submit">Показать</button>
+      </form>
+      <label class="inline"><input id="pt-T" type="checkbox" checked> кривые при T = 10⁻³ (пунктир)</label>
+      <table id="point-table" class="point-table"></table>
+      <h3>Φ(k, q₁)</h3>
+      <div id="chart-phi" class="chart chart-phi"></div>
+      <p class="note">Сплошные — T = 0, пунктир — T = 10⁻³. Вертикальные точки — особенности q₁ = P<sub>n</sub> + P<sub>n+k</sub>
+        (при k = 0: q₁ = 2k<sub>F,n</sub>), где при T = 0 Φ → −∞ (логарифм); ось обрезана снизу.</p>
+      <button id="dl-point">Скачать кривые (CSV)</button>
+    </aside>
+  </main>
+
+  <section class="card about-card">
+    <h2>Что здесь посчитано</h2>
+    <ul>
+      <li><b>Φ(k, q₁)</b> = ∫dp₁/(2πL) Σ<sub>n</sub> [2M² + q²/2] · (θ(E<sub>n</sub>−μ)/E<sub>n</sub> − θ(E<sub>nk</sub>−μ)/E<sub>nk</sub>)/(E<sub>nk</sub>² − E<sub>n</sub>²),
+        q² = q₁² + (2πk/L)², E<sub>n</sub> = √(M² + p₁² + (2πn/L)²), E<sub>nk</sub> = √(M² + (p₁+q₁)² + (2π(n+k)/L)²) — формула Р. Н. Жохова
+        после интегрирования по p₀ и подстановки уравнения щели (числитель симметризован, Φ(−k) = Φ(k)).</li>
+      <li><b>q₁</b> — импульс флуктуации вдоль бесконечного направления (непрерывный); <b>k</b> — число волн вдоль
+        окружности длины L (целое): k = 0 — модуляция только вдоль x₁.</li>
+      <li><b>Знак:</b> в вакууме Φ &gt; 0; Φ &lt; 0 — однородная фаза неустойчива к такой флуктуации.</li>
+      <li><b>Фаза V</b> (M* ≥ μ): ферми-моря нет, Φ = Φ<sub>vac</sub> &gt; 0 — всегда устойчива. <b>Фазы I<sub>j</sub></b> (0 &lt; M* &lt; μ):
+        у заполненного канала n логарифмическая особенность при q₁ = 2k<sub>F,n</sub>, при T = 0 Φ → −∞;
+        при T &gt; 0 (θ(E−μ) → 1 − n<sub>F</sub>(E−μ) − n<sub>F</sub>(E+μ)) она обрезается ~ln(1/T).
+        <b>Фаза T</b> (M* = 0) не рассматривается: формула получена с уравнением щели при M ≠ 0.</li>
+      <li>Карты посчитаны заранее (Python, <code>notebooks/82_stab_minphi.py</code>); кривые в точке считаются в браузере
+        (вакуумная часть — квадратура по параметру Фейнмана с точной суммой по n, часть с ферми-морем — замкнутая
+        форма при T = 0 и численно при T &gt; 0), совпадение с Python до 10⁻¹⁴.</li>
+    </ul>
+  </section>
+
+  <footer class="page-footer">
+    <p>Пакет <code>njl3.stab</code>, приложение статьи 1 — <a href="../b0/">фазовая диаграмма при b = 0</a>. Версия <span id="version">0.1.0</span>.</p>
+  </footer>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

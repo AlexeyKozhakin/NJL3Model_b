@@ -1,0 +1,26 @@
+/* Дополнения к ../b0/css/style.css для приложения устойчивости. */
+.viz-root {
+  --neg-strong: #b2182b;
+  --neg:        #ef8a62;
+  --mid:        #f2f1ec;
+  --pos:        #67a9cf;
+  --pos-strong: #2166ac;
+  --blank:      #e3e2dd;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root { --mid: #3a3a37; --blank: #2a2a28; }
+}
+:root[data-theme="dark"] .viz-root { --mid: #3a3a37; --blank: #2a2a28; }
+
+.layout { grid-template-columns: minmax(0, 1fr) 460px; }
+.chart-phi { height: 360px; }
+.point-form input { width: 86px; }
+label.inline { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-secondary); margin: 0 0 6px; }
+.point-card .note, .about-card li { color: var(--text-secondary); font-size: 13px; }
+.about-card { margin-top: 16px; }
+.about-card ul { margin: 0; padding-left: 18px; }
+.about-card li + li { margin-top: 4px; }
+.presets button.primary { font-weight: 600; }
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+}
