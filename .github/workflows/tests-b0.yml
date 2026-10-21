@@ -29,6 +29,8 @@ jobs:
         run: pytest tests/inf -q
       - name: Tests GN stability (second variation)
         run: pytest tests/stab -q
+      - name: Tests homogeneous case, arbitrary phi and g
+        run: pytest tests/hom -q
 
   # njl3.b0 as a referee installs it: clean environment, no numba, no research code
   b0-matrix:

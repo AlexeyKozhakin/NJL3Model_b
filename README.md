@@ -147,6 +147,8 @@ pytest tests/b0                   # all, incl. direct numerical integration and 
 | `web/b0/` | web application: phase diagram at $b=0$ |
 | `njl3/stab/`, `tests/stab/` | stability of the homogeneous GN solution: second variation $\Phi(k, q_1)$ |
 | `web/stab/` | web application: stability map and $\Phi(q_1)$ at a point (<https://alexeykozhakin.github.io/NJL3Model_b/web/stab/>) |
+| `njl3/hom/`, `tests/hom/` | homogeneous case for an arbitrary twist $\varphi$ and coupling $g$ (certified minimum; $\varphi=0$ coincides with `njl3.b0`) |
+| `web/lab/` | web application with tabs: homogeneous phase diagram for any $\varphi$, $g$; stability (<https://alexeykozhakin.github.io/NJL3Model_b/web/lab/>) |
 | `njl3/full/`, `web/full/`, `tests/full/` | general case $(M,b)$ (work in progress) |
 | `functions/`, `gpu/` | earlier numerical integrators for $(M,b)$ (CPU/numba, PyTorch) |
 | `web/` | earlier web calculator for the general case (JavaScript) |

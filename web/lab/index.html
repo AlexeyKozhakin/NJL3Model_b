@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NJL₃ / ГН на ℝ²×S¹: лаборатория</title>
+  <meta name="description" content="Интерактивные расчёты модели NJL/ГН в 2+1 на R²×S¹: однородная фазовая диаграмма при любом граничном условии φ и знаке константы g; устойчивость однородного решения.">
+  <link rel="stylesheet" href="../b0/css/style.css">
+  <link rel="stylesheet" href="css/lab.css">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+<div class="viz-root">
+  <header class="page-header">
+    <h1>NJL₃ / ГН на ℝ²×S¹</h1>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="hom" class="tab">Однородный случай (любые φ, g)</button>
+      <button role="tab" data-tab="stab" class="tab">Устойчивость однородного решения (ГН)</button>
+    </nav>
+  </header>
+
+  <!-- ===================================================================== -->
+  <section id="tab-hom" class="tab-panel" role="tabpanel">
+    <p class="lead">
+      Глобальный минимум однородного потенциала Ω(M) при b = 0 по массе M для химического потенциала μ и
+      размера L. Граничное условие по окружности: ψ(x₂ + L) = e<sup>2πiφ</sup>ψ(x₂), моды k<sub>n</sub> = 2π(n + φ)/L
+      (φ = 0 — периодическое, φ = ½ — антипериодическое). Карта считается в браузере с гарантированным поиском
+      всех корней уравнения щели. Кликните по карте — справа Ω(M) и G(M), ниже срезы.
+    </p>
+    <section class="controls" aria-label="Параметры">
+      <fieldset>
+        <legend>φ</legend>
+        <input id="phi" type="number" step="0.01" value="0" min="0" max="1" aria-label="φ">
+        <span class="presets mini">
+          <button data-phi="0">0</button><button data-phi="0.1">0.1</button><button data-phi="0.2">0.2</button>
+          <button data-phi="0.25">¼</button><button data-phi="0.3">0.3</button><button data-phi="0.4">0.4</button>
+          <button data-phi="0.5">½</button>
+        </span>
+      </fieldset>
+      <label>g
+        <select id="g">
+          <option value="-1">−1</option>
+          <option value="1">+1</option>
+        </select>
+      </label>
+      <fieldset>
+        <legend>μ</legend>
+        <input id="mu-lo" type="number" step="0.05" value="0.05" aria-label="μ от"> –
+        <input id="mu-hi" type="number" step="0.05" value="7" aria-label="μ до">
+      </fieldset>
+      <fieldset>
+        <legend>L</legend>
+        <input id="L-lo" type="number" step="0.05" value="0.1" min="0.01" aria-label="L от"> –
+        <input id="L-hi" type="number" step="0.05" value="10" aria-label="L до">
+      </fieldset>
+      <label>Разрешение
+        <select id="res">
+          <option value="80">80 × 80</option>
+          <option value="160" selected>160 × 160</option>
+          <option value="260">260 × 260</option>
+          <option value="400">400 × 400</option>
+        </select>
+      </label>
+      <label>Верх шкалы M*
+        <input id="vmax" type="number" step="0.5" value="4" min="0.1">
+      </label>
+      <button id="build" class="primary">Построить</button>
+      <span class="presets">
+        <button data-preset="0.05,7,0.1,10">Вся область</button>
+        <button data-preset="2.5,4,0.1,4">μ ∈ [2.5, 4]</button>
+        <button data-preset="3,3.4,2,10">Пики</button>
+        <button data-preset="0.05,4,0.05,2">Малые L</button>
+      </span>
+      <span class="toggles">
+        <label><input id="show-lines" type="checkbox" checked> границы фаз</label>
+        <label><input id="show-thr" type="checkbox"> пороги мод μ = |k<sub>n</sub>|</label>
+        <label>Тема
+          <select id="theme">
+            <option value="auto">как в системе</option>
+            <option value="light">светлая</option>
+            <option value="dark">тёмная</option>
+          </select>
+        </label>
+      </span>
+    </section>
+    <div class="progress" aria-hidden="true"><div id="progress-bar"></div></div>
+    <p id="status" class="status" role="status"></p>
+
+    <main class="layout">
+      <section class="card diagram-card">
+        <div id="diagram" class="chart chart-diagram"></div>
+        <div class="legend-phases">
+          <span><b>V</b> — M* &gt; 0, ферми-море пусто (m<sub>n</sub> ≥ μ для всех мод)</span>
+          <span><b>I<sub>j</sub></b> — 0 &lt; M*, заполнены уровни |k<sub>n</sub>| с номерами 0…j</span>
+          <span><b>T</b> — M* = 0</span>
+        </div>
+        <p class="note">Границы фаз на карте — по сетке (между соседними клетками разных фаз); точное положение и род
+          перехода — на срезах ниже.</p>
+        <div class="export">
+          <button id="dl-csv">Скачать карту (CSV)</button>
+          <button id="copy-link">Скопировать ссылку на вид</button>
+        </div>
+      </section>
+
+      <aside class="card point-card" aria-live="polite">
+        <h2>Точка</h2>
+        <form id="point-form" class="point-form">
+          <label>μ <input id="pt-mu" type="number" step="0.001" value="3.15"></label>
+          <label>L <input id="pt-L" type="number" step="0.001" value="3.5" min="0.01"></label>
+          <button type="submit">Показать</button>
+        </form>
+        <table id="point-table" class="point-table"></table>
+        <h3>Ω(M) − Ω(0)</h3>
+        <div id="chart-omega" class="chart chart-small"></div>
+        <h3>G(M) = Ω′(M)/M</h3>
+        <div id="chart-gap" class="chart chart-small"></div>
+        <button id="dl-point">Скачать точку (JSON)</button>
+      </aside>
+    </main>
+
+    <section class="card slices-card" aria-live="polite">
+      <h2>Срезы через точку</h2>
+      <div class="slices">
+        <div>
+          <h3 id="slice-mu-title">M*(μ) при фиксированном L</h3>
+          <div id="chart-slice-mu" class="chart chart-slice"></div>
+          <table id="slice-mu-table" class="point-table slice-table"></table>
+        </div>
+        <div>
+          <h3 id="slice-L-title">M*(L) при фиксированном μ</h3>
+          <div id="chart-slice-L" class="chart chart-slice"></div>
+          <table id="slice-L-table" class="point-table slice-table"></table>
+        </div>
+      </div>
+      <p class="note">Вертикальные линии — переходы (бисекция до 10⁻¹²); род по поведению M*: 1-й — скачок (точки),
+        2-й — непрерывный уход в ноль (штрих).</p>
+    </section>
+
+    <section class="card about-card">
+      <h2>Формулы</h2>
+      <ul>
+        <li>G(M) = 1/g + M/π + (1/(πL))·ln[(1 − e<sup>−LM</sup>)² + 4e<sup>−LM</sup>sin²πφ] + (2/(πL))·Σ<sub>n∈ℤ, m<sub>n</sub>&lt;μ</sub> arccosh(μ/m<sub>n</sub>),
+          dΩ/dM = M·G(M); m<sub>n</sub> = √(M² + k<sub>n</sub>²).</li>
+        <li>Ω<sub>L</sub> = (2/(πL³))·Re[LM·Li₂(z) + Li₃(z)], z = e<sup>−LM+2πiφ</sup>; при φ = 0 — формулы статьи 1.</li>
+        <li>Гарантия полноты: G = 1/g + A(M) + B(M), A = M/π + ln D/(πL) возрастает (A′ = (1 − e<sup>−2LM</sup>)/(πD) &gt; 0),
+          B = (2/(πL))Σ arccosh(μ/m<sub>n</sub>) убывает — метод ветвей и границ находит все корни.</li>
+        <li>φ и 1 − φ эквивалентны; при μ = 0 и малых L симметрия восстанавливается (M* = 0), если 4 sin²πφ &gt; 1, т. е. φ &gt; 1/6.</li>
+        <li>Пакет <code>njl3.hom</code> (Python), совпадение JS с Python ~10⁻¹⁴.</li>
+      </ul>
+    </section>
+  </section>
+
+  <!-- ===================================================================== -->
+  <section id="tab-stab" class="tab-panel" role="tabpanel" hidden>
+    <p class="lead">Вторая вариация Φ(k, q₁) модели ГН вокруг однородного решения (пока φ = 0, g = −1). Отдельная страница:
+      <a href="../stab/" target="_blank" rel="noopener">web/stab</a>.</p>
+    <iframe id="stab-frame" class="stab-frame" title="Устойчивость однородного решения" loading="lazy"></iframe>
+  </section>
+
+  <footer class="page-footer">
+    <p>Приложение статьи 1 (φ = 0, g = −1, точные линии переходов): <a href="../b0/">web/b0</a>. Версия <span id="version">0.1.0</span>.</p>
+  </footer>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
