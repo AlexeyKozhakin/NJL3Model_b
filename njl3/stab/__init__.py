@@ -6,7 +6,7 @@ Phi < 0 for some (k, q1) means that the homogeneous phase is unstable.
 """
 
 from njl3.stab.formulas import (
-    channels, numerator, phi, phi_direct_mat, phi_direct_vac, phi_mat, phi_vac, singular_q1,
+    channels, numerator, phi, phi_direct_mat, phi_direct_vac, phi_mat, phi_mat_T, phi_vac, singular_q1,
 )
 
-__all__ = ['channels', 'numerator', 'phi', 'phi_direct_mat', 'phi_direct_vac', 'phi_mat', 'phi_vac', 'singular_q1']
+__all__ = ['channels', 'numerator', 'phi', 'phi_direct_mat', 'phi_direct_vac', 'phi_mat', 'phi_mat_T', 'phi_vac', 'singular_q1']

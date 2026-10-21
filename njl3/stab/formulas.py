@@ -33,6 +33,13 @@ With u = (p1 + sqrt(m² + p1²))/m the integral is elementary:
 
 At q1 → 2 P_n (k = 0) both levels reach the Fermi surface together and Phi_mat has a logarithmic
 singularity (1D nesting), Phi -> -∞.
+
+Temperature. For a static fluctuation (q0 = 0) the partial fractions in z = iω + mu are exact, and
+T Σ_ω 1/(z² - E²) = -(1 - n_F(E - mu) - n_F(E + mu))/(2E), so T > 0 amounts to
+    θ(E - mu) -> 1 - n_F(E - mu) - n_F(E + mu),
+and in the matter part χ(mu - E) -> w(E) = n_F(E - mu) + n_F(E + mu):
+    Phi_mat(T) = -(N/(pi L)) Σ_n PV ∫ dp1 w(E_n) / (E_n (2 q1 p1 + c_nk)).
+The singularity at 2 P_n is cut off at ~ ln(mu/T).
 """
 
 import math
@@ -109,9 +116,59 @@ def phi_mat(k, q1, M, mu, L):
     return -numerator(M, q1, k, L) / (PI * L) * s
 
 
-def phi(k, q1, M, mu, L):
-    """Phi(k, q1) = Phi_vac + Phi_mat (T = 0, M = M* ≠ 0)."""
-    return phi_vac(k, q1, M, L) + phi_mat(k, q1, M, mu, L)
+def _n_F(x, T):
+    if x > 40.0 * T:
+        return math.exp(-x / T)
+    if x < -40.0 * T:
+        return 1.0 - math.exp(x / T)
+    return 1.0 / (math.exp(x / T) + 1.0)
+
+
+def _pv_line(f, a, b, p0, pts):
+    """PV ∫_a^b f(p)/(p - p0) dp by subtracting the pole."""
+    if not (a < p0 < b):
+        br = [p for p in pts if a < p < b]
+        return quad(lambda p: f(p) / (p - p0), a, b, points=br or None, limit=400,
+                    epsabs=1e-14, epsrel=1e-11)[0]
+    f0 = f(p0)
+    br = [p for p in pts + [p0] if a < p < b]
+    g = lambda p: (f(p) - f0) / (p - p0) if p != p0 else 0.0
+    return (quad(g, a, b, points=br, limit=400, epsabs=1e-14, epsrel=1e-11)[0]
+            + f0 * math.log((b - p0) / (p0 - a)))
+
+
+def phi_mat_T(k, q1, M, mu, L, T):
+    """Matter part of Phi(k, q1) at temperature T (T = 0: closed form)."""
+    if T == 0.0:
+        return phi_mat(k, q1, M, mu, L)
+    w2 = (2.0 * PI / L) ** 2
+    E_max = mu + 40.0 * T
+    s = 0.0
+    if E_max <= M:
+        return 0.0
+    n_max = int(math.floor(math.sqrt(E_max * E_max - M * M) * L / (2.0 * PI)))
+    for n in range(-n_max, n_max + 1):
+        m = math.sqrt(M * M + w2 * n * n)
+        if m >= E_max:
+            continue
+        pm = math.sqrt(E_max * E_max - m * m)
+        c = q1 * q1 + w2 * ((n + k) ** 2 - n * n)
+        pts = [-math.sqrt(mu * mu - m * m), math.sqrt(mu * mu - m * m)] if m < mu else []
+
+        def f(p, m=m):
+            E = math.sqrt(m * m + p * p)
+            return (_n_F(E - mu, T) + _n_F(E + mu, T)) / E
+
+        if q1 == 0.0:
+            s += quad(f, -pm, pm, points=pts or None, limit=400, epsabs=1e-14, epsrel=1e-11)[0] / c
+        else:
+            s += _pv_line(f, -pm, pm, -c / (2.0 * q1), pts) / (2.0 * q1)
+    return -numerator(M, q1, k, L) / (PI * L) * s
+
+
+def phi(k, q1, M, mu, L, T=0.0):
+    """Phi(k, q1) = Phi_vac + Phi_mat (M = M* ≠ 0)."""
+    return phi_vac(k, q1, M, L) + phi_mat_T(k, q1, M, mu, L, T)
 
 
 def singular_q1(M, mu, L, k=0):
@@ -194,3 +251,79 @@ def phi_direct_vac(k, q1, M, L, n_cut=300):
     N = numerator(M, q1, k, L)
     tot += 2.0 * N / (w * w * (n_cut + 0.5))
     return tot / (2.0 * PI * L)
+
+
+# ==============================================================================
+# Vectorized over q1 (T = 0) — for scans and maps
+# ==============================================================================
+
+import numpy as np
+
+_GL_X, _GL_W = np.polynomial.legendre.leggauss(32)
+
+
+def phi_vac_vec(k, q1, M, L, n_sub=None):
+    """Phi_vac(k, q1) for an array q1: composite Gauss–Legendre in x (k half-periods resolved)."""
+    q1 = np.asarray(q1, float)
+    k = abs(int(k))
+    n_sub = n_sub or max(4, 4 * k)
+    edges = np.linspace(0.0, 1.0, n_sub + 1)
+    h = 0.5 * (edges[1:] - edges[:-1])
+    x = (0.5 * (edges[1:] + edges[:-1])[:, None] + h[:, None] * _GL_X[None, :]).ravel()
+    wx = (h[:, None] * _GL_W[None, :]).ravel()
+    q2 = (2.0 * PI * k / L) ** 2
+    a = np.sqrt(M * M + np.outer(q1 * q1 + q2, x * (1.0 - x)))
+    La = L * a
+    c = np.cos(2.0 * PI * k * x)[None, :]
+    ex = np.exp(-np.minimum(La, 700.0))
+    ker = (1.0 - ex * ex) / (a * (1.0 + ex * ex - 2.0 * c * ex))      # sinh/(cosh - c), overflow-safe
+    N = 2.0 * M * M + 0.5 * (q1 * q1 + q2)
+    return N / (4.0 * PI) * (ker @ wx)
+
+
+def phi_mat_vec(k, q1, M, mu, L):
+    """Phi_mat(k, q1) at T = 0 for an array q1 > 0 (closed form)."""
+    q1 = np.asarray(q1, float)
+    w2 = (2.0 * PI / L) ** 2
+    s = np.zeros_like(q1)
+    a = 2.0 * q1
+    for n, m, P in channels(M, mu, L):
+        c = q1 * q1 + w2 * ((n + k) ** 2 - n * n)
+        D = np.sqrt(c * c + a * a * m * m)
+        up, um = (-c + D) / (a * m), (-c - D) / (a * m)
+        uP, uM = (P + mu) / m, (mu - P) / m                    # u(±P), sqrt(m² + P²) = mu
+        with np.errstate(divide='ignore'):
+            s += (np.log(np.abs((uP - up) / (uP - um))) - np.log(np.abs((uM - up) / (uM - um)))) / D
+    N = 2.0 * M * M + 0.5 * (q1 * q1 + w2 * k * k)
+    return -N / (PI * L) * s
+
+
+def phi_vec(k, q1, M, mu, L):
+    """Phi(k, q1) at T = 0 for an array q1 > 0."""
+    return phi_vac_vec(k, q1, M, L) + phi_mat_vec(k, q1, M, mu, L)
+
+
+def scan_min(M, mu, L, T=1e-3, q_max=10.0, n_q=400, k_max=None):
+    """
+    min over k ≥ 0 and q1 ∈ (0, q_max] of Phi at temperature T. The T = 0 closed form on a q-grid is
+    accurate away from the singular points q_s; at every q_s ≤ q_max Phi is evaluated at T exactly
+    (there the T = 0 value is -∞). Returns dict(phi_min, k, q1, singular: bool).
+    """
+    k_max = k_max if k_max is not None else int(q_max * L / (2.0 * PI))
+    q = np.linspace(q_max / n_q, q_max, n_q)
+    best = dict(phi_min=math.inf, k=None, q1=None, singular=False)
+    for k in range(0, k_max + 1):
+        v = phi_vec(k, q, M, mu, L)
+        qs = [x for x in singular_q1(M, mu, L, k) if 0.0 < x <= q_max]
+        if qs:   # drop grid points within the thermal width of a singularity
+            near = np.min(np.abs(q[:, None] - np.array(qs)[None, :]), axis=1) < 50.0 * T
+            v = np.where(near, np.inf, v)
+        i = int(np.argmin(v))
+        if v[i] < best['phi_min']:
+            best = dict(phi_min=float(v[i]), k=k, q1=float(q[i]), singular=False)
+        if T > 0.0:
+            for x in qs:
+                val = phi(k, x, M, mu, L, T)
+                if val < best['phi_min']:
+                    best = dict(phi_min=val, k=k, q1=x, singular=True)
+    return best
