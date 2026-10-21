@@ -148,7 +148,8 @@ pytest tests/b0                   # all, incl. direct numerical integration and 
 | `njl3/stab/`, `tests/stab/` | stability of the homogeneous GN solution: second variation $\Phi(k, q_1)$ |
 | `web/stab/` | web application: stability map and $\Phi(q_1)$ at a point (<https://alexeykozhakin.github.io/NJL3Model_b/web/stab/>) |
 | `njl3/hom/`, `tests/hom/` | homogeneous case for an arbitrary twist $\varphi$ and coupling $g$ (certified minimum; $\varphi=0$ coincides with `njl3.b0`) |
-| `web/lab/` | web application with tabs: homogeneous phase diagram for any $\varphi$, $g$; stability (<https://alexeykozhakin.github.io/NJL3Model_b/web/lab/>) |
+| `njl3/inh/`, `tests/inh/` | $\Omega(M, b)$ and its global minimum for a twist $\varphi\in\{0,0.1,\dots,0.5\}$ and any $g$ (tables $s_\varphi$; $\varphi=0$ coincides with `njl3.full`) |
+| `web/lab/` | web application with tabs: homogeneous phase diagram for any $\varphi$, $g$; $(M, b)$ maps for $\varphi=0\dots0.5$, $g=\pm1$; stability (<https://alexeykozhakin.github.io/NJL3Model_b/web/lab/>) |
 | `njl3/full/`, `web/full/`, `tests/full/` | general case $(M,b)$ (work in progress) |
 | `functions/`, `gpu/` | earlier numerical integrators for $(M,b)$ (CPU/numba, PyTorch) |
 | `web/` | earlier web calculator for the general case (JavaScript) |

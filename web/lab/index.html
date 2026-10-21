@@ -15,6 +15,7 @@
     <h1>NJL₃ / ГН на ℝ²×S¹</h1>
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="hom" class="tab">Однородный случай (любые φ, g)</button>
+      <button role="tab" data-tab="inh" class="tab">Неоднородный случай (M, b)</button>
       <button role="tab" data-tab="stab" class="tab">Устойчивость однородного решения (ГН)</button>
     </nav>
   </header>
@@ -147,6 +148,90 @@
         <li>φ и 1 − φ эквивалентны; при μ = 0 и малых L симметрия восстанавливается (M* = 0), если 4 sin²πφ &gt; 1, т. е. φ &gt; 1/6.</li>
         <li>Пакет <code>njl3.hom</code> (Python), совпадение JS с Python ~10⁻¹⁴.</li>
       </ul>
+    </section>
+  </section>
+
+  <!-- ===================================================================== -->
+  <section id="tab-inh" class="tab-panel" role="tabpanel" hidden>
+    <p class="lead">
+      Глобальный минимум Ω(M, b) по массе M и параметру киральной спирали b. Фазы с b = 0 (V, I<sub>j</sub>) — точное
+      однородное решение; фазы B<sub>j</sub> — минимум у порога уровня |k<sub>j</sub>|: b ≈ S<sub>j</sub> = √(μ² − k<sub>j</sub>²),
+      k<sub>n</sub> = 2π(n + φ)/L. У каждого порога логарифмическая неустойчивость, щель экспоненциально мала; физический
+      порог — температура: щель канала исчезает при T &gt; T<sub>c</sub> = (e<sup>γ</sup>/π)(S<sub>j</sub>/μ)M*<sub>j</sub> (серое — M = 0).
+      Карты посчитаны заранее при <b>T = 10⁻³</b> для φ = 0, 0.1, …, 0.5 и g = ±1; клик по карте — расчёт точки в браузере
+      (порог T можно поменять).
+    </p>
+    <section class="controls" aria-label="Параметры">
+      <span class="presets seg" id="x-phi-btns">
+        <span class="muted">φ</span>
+        <button data-xphi="0">0</button><button data-xphi="0.1">0.1</button><button data-xphi="0.2">0.2</button>
+        <button data-xphi="0.3">0.3</button><button data-xphi="0.4">0.4</button><button data-xphi="0.5">½</button>
+      </span>
+      <label>g
+        <select id="x-g"><option value="-1">−1</option><option value="1">+1</option></select>
+      </label>
+      <span class="presets seg">
+        <button data-xregion="full">Вся область</button>
+        <button data-xregion="peaks">Пики</button>
+      </span>
+      <span class="toggles">
+        <label><input id="x-show-bnd" type="checkbox" checked> границы фаз</label>
+        <label><input id="x-show-asym" type="checkbox" checked> отметить асимптотические щели</label>
+      </span>
+    </section>
+    <p id="x-status" class="status" role="status"></p>
+    <section class="maps">
+      <div class="card"><h2>M*</h2><div id="x-map-M" class="chart chart-map"></div></div>
+      <div class="card"><h2>b*</h2><div id="x-map-b" class="chart chart-map"></div></div>
+    </section>
+    <div class="legend-phases">
+      <span><b>V</b>, <b>I<sub>j</sub></b> — b = 0 (однородное решение)</span>
+      <span><b>B<sub>j</sub></b> — канал у порога уровня j (b* ≈ S<sub>j</sub>)</span>
+      <span>точки — щель из асимптотики M* = exp(−A/c − ½)</span>
+      <span><b>T</b> (серое) — M = 0: ни одна щель не переживает T</span>
+    </div>
+    <section class="layout-full">
+      <div class="card">
+        <h2>Точка</h2>
+        <div class="point-grid">
+          <div>
+            <form id="x-point-form" class="point-form">
+              <label>μ <input id="x-pt-mu" type="number" step="0.01" value="4.0"></label>
+              <label>L <input id="x-pt-L" type="number" step="0.01" value="2.0" min="0.05"></label>
+              <label>T <input id="x-pt-T" type="number" step="0.0001" value="0.001" min="0"></label>
+              <button type="submit" class="primary">Рассчитать</button>
+            </form>
+            <table id="x-point-table" class="point-table"></table>
+            <h3>Каналы у порогов</h3>
+            <div style="overflow-x:auto"><table id="x-channels" class="channels"></table></div>
+            <p class="note">Жирным — порог глобального минимума; «&lt; порога» — щель не переживает T; * — щель из асимптотики.</p>
+            <button id="x-dl-point">Скачать точку (JSON)</button>
+          </div>
+          <div>
+            <h3>Ω(M, b) − Ω(0, 0) около точки</h3>
+            <div id="x-chart-omega" class="chart chart-mid"></div>
+            <p class="note">Синее — Ω &lt; 0, красное — Ω &gt; 0; пунктир — пороги b = S<sub>j</sub>; звезда — глобальный минимум.</p>
+          </div>
+          <div>
+            <h3 id="x-chan-title">[Ω(M, S<sub>j</sub>) − Ω(0)]/M² у порога</h3>
+            <div id="x-chart-chan" class="chart chart-mid"></div>
+            <p class="note">Асимптотика A − c·ln(1/M) — прямая; минимум Ω при ln(1/M*) = A/c + ½. Серая полоса — щели меньше
+              M<sub>min</sub> = T/(0.57·S/μ), не переживающие T.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="layout-full">
+      <div class="card">
+        <h2>Срезы через минимум</h2>
+        <div class="slice-controls">
+          <label>Масштаб <select id="x-slice-zoom"><option value="near">у минимума</option><option value="wide">широко</option></select></label>
+        </div>
+        <div class="maps">
+          <div><h3 id="x-slice-b-title">Ω(M*, b) − Ω(0, 0)</h3><div id="x-chart-slice-b" class="chart chart-mid"></div></div>
+          <div><h3 id="x-slice-M-title">Ω(M, b*) − Ω(0, 0)</h3><div id="x-chart-slice-M" class="chart chart-mid"></div></div>
+        </div>
+      </div>
     </section>
   </section>
 

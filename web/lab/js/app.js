@@ -43,7 +43,7 @@ function readHash() {
   }
 }
 function writeHash() {
-  const p = new URLSearchParams();
+  const p = new URLSearchParams(location.hash.slice(1));          // параметры другой вкладки (x_…) сохраняются
   for (const [k, v] of Object.entries(state)) p.set(k, typeof v === 'boolean' ? (v ? '1' : '0') : String(v));
   history.replaceState(null, '', '#' + p.toString());
 }
@@ -68,7 +68,9 @@ function showTab(name) {
   state.tab = name; writeHash();
   for (const b of document.querySelectorAll('[data-tab]')) b.classList.toggle('active', b.dataset.tab === name);
   $('tab-hom').hidden = name !== 'hom';
+  $('tab-inh').hidden = name !== 'inh';
   $('tab-stab').hidden = name !== 'stab';
+  if (name === 'inh') import('./inh.js').then((m) => m.initInh());
   if (name === 'stab' && !$('stab-frame').src) $('stab-frame').src = '../stab/';
   if (name === 'hom') window.dispatchEvent(new Event('resize'));
 }
@@ -365,7 +367,8 @@ function main() {
   });
   const redraw = () => { drawDiagram(); if (lastPoint) { drawPointCharts(lastPoint, lastPoint.M_vac); drawSlices(); } };
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
-  $('theme').addEventListener('change', () => { state.theme = $('theme').value; writeHash(); applyTheme(); redraw(); });
+  $('theme').addEventListener('change', () => { state.theme = $('theme').value; writeHash(); applyTheme(); redraw();
+    import('./inh.js').then((m) => m.redrawInh()); });
 }
 
 main();
