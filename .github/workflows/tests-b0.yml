@@ -27,6 +27,8 @@ jobs:
         run: pytest tests/full -q
       - name: Tests L -> infinity
         run: pytest tests/inf -q
+      - name: Tests GN stability (second variation)
+        run: pytest tests/stab -q
 
   # njl3.b0 as a referee installs it: clean environment, no numba, no research code
   b0-matrix:
