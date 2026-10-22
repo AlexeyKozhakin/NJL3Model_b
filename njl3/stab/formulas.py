@@ -291,6 +291,10 @@ def phi_vac_vec(k, q1, M, L, n_sub=None, phi=0.0):
     k = abs(int(k))
     n_sub = n_sub or max(4, 4 * k)
     edges = np.linspace(0.0, 1.0, n_sub + 1)
+    if M < 1e-2:
+        # small mass: peaks of width ~M²/q² at x = 0, 1 (massless modes) — geometric grading to the ends
+        g = np.geomspace(1e-16, 0.5 / n_sub, 48)
+        edges = np.unique(np.concatenate([edges, g, 1.0 - g]))
     h = 0.5 * (edges[1:] - edges[:-1])
     x = (0.5 * (edges[1:] + edges[:-1])[:, None] + h[:, None] * _GL_X[None, :]).ravel()
     wx = (h[:, None] * _GL_W[None, :]).ravel()
@@ -361,3 +365,75 @@ def scan_min(M, mu, L, T=1e-3, q_max=10.0, n_q=400, k_max=None, phi=0.0):
             if val < best['phi_min']:
                 best = dict(phi_min=val, k=k, q1=x, singular=True)
     return best
+
+
+# ==============================================================================
+# The symmetric phase M* = 0
+# ==============================================================================
+#
+# Without the gap equation (M = 0), the second variation of Zhokhov (regulator mass m -> 0) splits, with
+# p·p' = (E_n² + E_nk² - q²)/2, α = ½ + q²/(2(E_n² - E_nk²)), into
+#   - "tadpoles": 1/(2g) + (1/(πL)) ln(1 - e^{-Lm}) + (1/(πL)) Σ_n arccosh(mu/m_n) = ½ G(m) - m/(2π) -> ½ G(0⁺)
+#     (the homogeneous gap function of paper 1 / njl3.hom: ln(Lm) and ln(2mu/m) cancel), and
+#   - the loop with the numerator q²/2 = Phi_vac + Phi_mat of the M ≠ 0 formula at M -> 0 (2M² + q²/2 -> q²/2;
+#     its ln(1/m) from the vacuum loop and from the zero mode of the matter part cancel),
+#     Phi_{M=0}(k, q1) = ½ G(0⁺; mu, L) + [Phi_vac + Phi_mat](k, q1; M -> 0),   Phi -> ½ G(0⁺) as q -> 0.
+# Checked against Zhokhov's formula taken literally with the regulator (with the matter term multiplied by ½,
+# i.e. prefactor 1/L instead of 2/L — otherwise the q -> 0 limit is not ½ G(0⁺)): phi_zero_direct.
+
+M_ZERO = 1e-4            # regulator mass: m-dependence ~1e-8 (1e-3 vs 1e-4); smaller m loses quadrature accuracy (peaks of width m²/q²)
+                         # (much smaller m needs the Feynman-x peaks of width m²/q² at x = 0, 1 resolved)
+
+
+def half_G0(mu, L, g, phi=0.0):
+    from njl3.hom.formulas import gap_G0
+    return 0.5 * gap_G0(mu, L, g, phi)
+
+
+def phi_zero(k, q1, mu, L, g, T=0.0, phi=0.0, m_reg=M_ZERO):
+    """Phi(k, q1) around the symmetric solution M = 0."""
+    return half_G0(mu, L, g, phi) + _phi_total(k, q1, m_reg, mu, L, T, phi)
+
+
+def scan_min_zero(mu, L, g, T=1e-3, phi=0.0, m_reg=M_ZERO, **kw):
+    """scan_min for M = 0: the loop part at M = m_reg plus the constant ½ G(0⁺)."""
+    r = scan_min(m_reg, mu, L, T=T, phi=phi, **kw)
+    r = dict(r)
+    r['phi_min'] += half_G0(mu, L, g, phi)
+    return r
+
+
+def phi_zero_direct(q1, k, mu, L, g, m, matter_factor=0.5):
+    """Zhokhov's M = 0 formula taken literally (φ = 0, regulator mass m) — for tests. matter_factor = ½ is the
+    correction found here (prefactor 1/L of the matter term); matter_factor = 1 is the formula as written."""
+    w = 2.0 * PI / L
+    q2 = q1 * q1 + (w * k) ** 2
+    vac = phi_vac(k, q1, m, L) * (0.5 * q2) / numerator(m, q1, k, L)
+    cas = math.log(-math.expm1(-L * m)) / (PI * L)
+    nmax = int(L * mu / (2 * PI)) + 2
+    mat = 0.0
+    for n in range(-nmax - abs(k) - 1, nmax + abs(k) + 2):
+        a2, b2 = w * n, w * (n + k)
+        if math.hypot(m, a2) >= mu and math.hypot(m, b2) >= mu:
+            continue
+
+        def f(p, a2=a2, b2=b2):
+            En = math.sqrt(p * p + a2 * a2 + m * m)
+            Ek = math.sqrt((p + q1) ** 2 + b2 * b2 + m * m)
+            pp = p * (p + q1) + a2 * b2
+            d = En * En - Ek * Ek
+            if abs(d) < 1e-12:
+                return 0.0
+            return (En * En - pp) / d * float(En < mu) / En + (Ek * Ek - pp) / (-d) * float(Ek < mu) / Ek
+        pts = {0.0, -q1, -q1 / 2}
+        for s in (1, -1):
+            pts.add(s * math.sqrt(max(mu * mu - a2 * a2 - m * m, 0.0)))
+            pts.add(s * math.sqrt(max(mu * mu - b2 * b2 - m * m, 0.0)) - q1)
+        pts = sorted(pts)
+        lo, hi = pts[0] - 1e-9, pts[-1] + 1e-9
+        edges = [lo] + [x for x in pts if lo < x < hi] + [hi]
+        for x0, x1 in zip(edges[:-1], edges[1:]):
+            if x1 > x0:
+                mat += quad(f, x0, x1, limit=400, epsabs=1e-13, epsrel=1e-11)[0]
+    mat *= 2.0 / L / (2.0 * PI)
+    return 1.0 / (2.0 * g) + vac + cas + matter_factor * mat
