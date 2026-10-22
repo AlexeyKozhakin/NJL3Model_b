@@ -19,7 +19,7 @@
 выход notebooks/output/53_full_maps_<NAME>.json.
 
 Запуск:  python notebooks/90_inh_maps.py --phi PHI --g G [--n N_MU N_L] [--T T] [--refine K] [--region MU0 MU1 L0 L1 NAME]
-→ web/lab/data/inh/maps_phi<PHI>_g<G>_<NAME|full>.json
+→ web/lab/data/inh/maps_phi<PHI>_g<G>_<NAME|full>.json (or --out FILE); --fast — the fast search njl3.fast
 """
 
 import json
@@ -36,7 +36,12 @@ import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from njl3.inh import find_minimum
+if '--fastnb' in sys.argv:
+    from njl3.fast.minimize_nb import find_minimum       # the same, compiled core (numba)
+elif '--fast' in sys.argv:
+    from njl3.fast.minimize import find_minimum          # fast candidate-based search (njl3/fast/PLAN.md)
+else:
+    from njl3.inh import find_minimum
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 args = sys.argv[1:]
@@ -126,7 +131,10 @@ def main():
     name = REGION or 'full'
     out_dir = os.path.join(ROOT, 'web', 'lab', 'data', 'inh')
     os.makedirs(out_dir, exist_ok=True)
-    out_json = os.path.join(out_dir, f'maps_phi{PHI:g}_g{G:g}_{name}.json')
+    if '--out' in args:
+        out_json = args[args.index('--out') + 1]
+    else:
+        out_json = os.path.join(out_dir, f'maps_phi{PHI:g}_g{G:g}_{name}.json')
     r6 = lambda x: None if not np.isfinite(x) else float(f'{x:.6g}')
     r9 = lambda x: None if not np.isfinite(x) else float(f'{x:.9g}')
     with open(out_json, 'w') as f:
