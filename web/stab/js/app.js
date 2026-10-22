@@ -1,8 +1,8 @@
 // Интерфейс: карта устойчивости (готовые данные) и кривые Φ(k, q₁) в точке (считаются в браузере).
-import { findMinimum, phaseLabel } from '../../b0/js/njl3b0.js';
+import { findMinimum, phaseLabel } from '../../lab/js/njl3hom.js';
 import { channels, phi, phiMat, phiVac, singularQ1 } from './njl3stab.js';
 
-const G = -1.0, T_MAP = 1e-3, Q_MAX = 10;
+const T_MAP = 1e-3, Q_MAX = 10;
 const $ = (id) => document.getElementById(id);
 const root = document.querySelector('.viz-root');
 
@@ -34,7 +34,7 @@ const PLOT_CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemo
 // ---------------------------------------------------------------------------
 // Состояние и ссылка
 // ---------------------------------------------------------------------------
-const state = { region: 'full', quantity: 'phi_min', lines: true, theme: 'auto', mu: 3.3, L: 2, kmax: 3, T: true };
+const state = { phi: 0, g: -1, region: 'full', quantity: 'phi_min', lines: true, theme: 'auto', mu: 3.3, L: 2, kmax: 3, T: true };
 
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
@@ -57,18 +57,39 @@ function syncInputs() {
   $('quantity').value = state.quantity; $('show-lines').checked = state.lines; $('theme').value = state.theme;
   $('pt-mu').value = state.mu; $('pt-L').value = state.L; $('pt-kmax').value = state.kmax; $('pt-T').checked = state.T;
   for (const b of document.querySelectorAll('[data-region]')) b.classList.toggle('primary', b.dataset.region === state.region);
+  for (const b of document.querySelectorAll('[data-phi]')) b.classList.toggle('on', Number(b.dataset.phi) === state.phi);
+  $('g').value = String(state.g);
 }
 
 // ---------------------------------------------------------------------------
 // Карта
 // ---------------------------------------------------------------------------
 let DATA = null;
+const CACHE = new Map();
+async function loadMap() {
+  const url = `data/maps_phi${state.phi}_g${state.g}_${state.region}.json`;
+  $('status').textContent = 'Загружаю карту…';
+  try {
+    if (!CACHE.has(url)) CACHE.set(url, await (await fetch(url)).json());
+    DATA = CACHE.get(url);
+    $('status').textContent = `φ = ${state.phi}, g = ${state.g}`;
+  } catch (e) {
+    DATA = null;
+    $('status').textContent = `Карта для φ = ${state.phi}, g = ${state.g} не найдена (${url})`;
+  }
+  drawMap();
+}
 
 function phaseCode(p) { return p === 'V' ? 0 : p === 'T' ? 2 : 1; }
 
 function drawMap() {
-  if (!DATA) return;
-  const t = tokens(), m = DATA.maps[state.region], q = state.quantity;
+  if (!DATA) {
+    const t = tokens();
+    Plotly.react('diagram', [], baseLayout(t, { annotations: [{ text: 'карта не загружена', showarrow: false, xref: 'paper',
+      yref: 'paper', x: 0.5, y: 0.5, font: { color: t.muted } }] }), PLOT_CONFIG);
+    return;
+  }
+  const t = tokens(), m = DATA, q = state.quantity;
   const traces = [];
   const hoverZ = m.phase.map((row, i) => row.map((p, j) =>
     `μ = ${m.mu[i].toFixed(4)}, L = ${m.L[j].toFixed(4)}<br>фаза ${p}` +
@@ -132,19 +153,20 @@ function qGrid(sing) {
 
 function computePoint() {
   const mu = state.mu, L = state.L, kmax = Math.max(0, Math.min(20, Math.round(state.kmax)));
-  const r = findMinimum(mu, L, G), M = r.M, ph = phaseLabel(M, mu, L);
-  const out = { mu, L, M, ph, kmax, curves: [], ch: M > 0 ? channels(M, mu, L) : [] };
+  const ph_ = state.phi, g = state.g;
+  const r = findMinimum(mu, L, g, ph_), M = r.M, ph = phaseLabel(M, mu, L, ph_);
+  const out = { mu, L, M, ph, kmax, curves: [], ch: M > 0 ? channels(M, mu, L, ph_) : [] };
   if (M === 0) return out;
   for (let k = 0; k <= kmax; k++) {
-    const sing = singularQ1(M, mu, L, k).filter((x) => x > 0 && x <= Q_MAX);
+    const sing = singularQ1(M, mu, L, k, ph_).filter((x) => x > 0 && x <= Q_MAX);
     const q = qGrid(sing);
-    const v = q.map((x) => phiVac(k, x, M, L) + phiMat(k, x, M, mu, L));
+    const v = q.map((x) => phiVac(k, x, M, L, ph_) + phiMat(k, x, M, mu, L, ph_));
     let vT = null;
     if (state.T) {
       // T = 10⁻³ differs from T = 0 only near the singularities (|Δ| < 1e-5 farther than ~0.3)
       vT = v.slice();
       for (let i = 0; i < q.length; i++)
-        if (sing.some((s) => Math.abs(q[i] - s) < 0.3)) vT[i] = phi(k, q[i], M, mu, L, T_MAP);
+        if (sing.some((s) => Math.abs(q[i] - s) < 0.3)) vT[i] = phi(k, q[i], M, mu, L, T_MAP, ph_);
     }
     let minT0 = Infinity, qmin = null;
     for (let i = 0; i < q.length; i++) if (!sing.some((s) => Math.abs(q[i] - s) < 1e-3) && v[i] < minT0) { minT0 = v[i]; qmin = q[i]; }
@@ -152,7 +174,7 @@ function computePoint() {
     if (state.T) {
       minT3 = Infinity;
       for (const x of vT) minT3 = Math.min(minT3, x);
-      for (const s of sing) minT3 = Math.min(minT3, phi(k, s, M, mu, L, T_MAP));
+      for (const s of sing) minT3 = Math.min(minT3, phi(k, s, M, mu, L, T_MAP, ph_));
     }
     out.curves.push({ k, q, v, vT, sing, minT0, qmin, minT3 });
   }
@@ -236,21 +258,17 @@ function setPoint(mu, L) {
 
 async function main() {
   readHash(); applyTheme(); syncInputs();
-  $('status').textContent = 'Загружаю карты…';
-  try {
-    DATA = await (await fetch('data/maps.json')).json();
-    $('status').textContent = '';
-  } catch (e) {
-    $('status').textContent = 'Не удалось загрузить data/maps.json: ' + e;
-  }
-  drawMap();
+  await loadMap();
   setPoint(state.mu, state.L);
   $('diagram').on('plotly_click', (ev) => {
     const p = ev.points && ev.points[0];
     if (p) setPoint(Number(p.y), Number(p.x));
   });
   for (const b of document.querySelectorAll('[data-region]'))
-    b.addEventListener('click', () => { state.region = b.dataset.region; syncInputs(); writeHash(); drawMap(); });
+    b.addEventListener('click', async () => { state.region = b.dataset.region; syncInputs(); writeHash(); await loadMap(); });
+  for (const b of document.querySelectorAll('[data-phi]'))
+    b.addEventListener('click', async () => { state.phi = Number(b.dataset.phi); syncInputs(); writeHash(); await loadMap(); setPoint(state.mu, state.L); });
+  $('g').addEventListener('change', async () => { state.g = Number($('g').value); writeHash(); await loadMap(); setPoint(state.mu, state.L); });
   $('quantity').addEventListener('change', () => { state.quantity = $('quantity').value; writeHash(); drawMap(); });
   $('show-lines').addEventListener('change', () => { state.lines = $('show-lines').checked; writeHash(); drawMap(); });
   $('theme').addEventListener('change', () => { state.theme = $('theme').value; applyTheme(); writeHash(); drawMap(); renderPoint(); });

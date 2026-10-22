@@ -14,7 +14,7 @@
   <header class="page-header">
     <h1>Модель ГН на ℝ²×S¹: устойчивость однородного решения</h1>
     <p class="lead">
-      Однородное решение M*(μ, L) (статья 1, φ = 0, g = −1) проверяется на устойчивость к неоднородной
+      Однородное решение M*(μ, L) (при выбранных φ и g) проверяется на устойчивость к неоднородной
       флуктуации δσ ∝ e<sup>iq₁x₁</sup>·e<sup>i2πkx₂/L</sup>. Вторая вариация действия Φ(k, q₁) &lt; 0 означает, что
       однородная фаза неустойчива. Карта: минимум Φ по q₁ ∈ (0, 10] (и по k). Кликните по карте —
       справа появятся кривые Φ(q₁) в этой точке, они считаются прямо в браузере.
@@ -22,6 +22,12 @@
   </header>
 
   <section class="controls" aria-label="Параметры">
+    <span class="presets seg" id="phi-btns">
+      <span class="muted">φ</span>
+      <button data-phi="0">0</button><button data-phi="0.1">0.1</button><button data-phi="0.2">0.2</button>
+      <button data-phi="0.3">0.3</button><button data-phi="0.4">0.4</button><button data-phi="0.5">½</button>
+    </span>
+    <label>g <select id="g"><option value="-1">−1</option><option value="1">+1</option></select></label>
     <span class="presets">
       <button data-region="full" class="primary">Вся область</button>
       <button data-region="peaks">Пики (μ ∈ [3, 3.4], L ∈ [2, 10])</button>

@@ -22,17 +22,25 @@ parameter x and the exact sum over n:
 
     Phi_vac = N/(4 pi) ∫_0^1 dx  sinh(L a) / (a (cosh(L a) - cos(2 pi k x))),  a² = M² + x(1-x) q².
 
-Matter part. B - B_vac = (χ2/E2 - χ1/E1)/(E2² - E1²), χ = θ(mu - E); by the same symmetry both terms
-contribute equally:
+Matter part. B - B_vac = (χ2/E2 - χ1/E1)/(E2² - E1²), χ = θ(mu - E). Shifting n -> n - k, p1 -> p1 - q1 turns
+the χ2 term into the χ1 term with the level n - k instead of n + k (q1 -> -q1, which does not change the p1
+integral), so
 
-    Phi_mat = -(N/(pi L)) Σ_{m_n < mu} PV ∫_{-P_n}^{P_n} dp1 / ( sqrt(m_n² + p1²) (2 q1 p1 + c_nk) ),
-    m_n² = M² + (2pi n/L)²,  P_n = sqrt(mu² - m_n²),  c_nk = q1² + (2pi/L)² ((n+k)² - n²).
+    Phi_mat = -(N/(2 pi L)) Σ_{m_n < mu} Σ_{±k} PV ∫_{-P_n}^{P_n} dp1 / ( sqrt(m_n² + p1²) (2 q1 p1 + c_n,±k) ),
+
+(for φ ∈ {0, 1/2} the two terms are equal, n -> -n - k; for a general twist they are not),
+    m_n² = M² + (2pi (n+φ)/L)²,  P_n = sqrt(mu² - m_n²),  c_n,±k = q1² + (2pi/L)² ((n+φ±k)² - (n+φ)²).
 
 With u = (p1 + sqrt(m² + p1²))/m the integral is elementary:
     ∫ dp1 / (E (a p1 + c)) = (1/D) ln|(u - u₊)/(u - u₋)|,  D = sqrt(c² + a² m²),  u± = (-c ± D)/(a m).
 
 At q1 → 2 P_n (k = 0) both levels reach the Fermi surface together and Phi_mat has a logarithmic
 singularity (1D nesting), Phi -> -∞.
+
+Twist φ of the boundary condition: p₂ₙ = 2π(n + φ)/L everywhere (m_n, c_nk, singular points) and
+cos 2πkx → cos 2π(kx − φ) in Phi_vac. The symmetric numerator 2M² + q²/2 holds for any φ: Zhokhov's numerator
+differs from it by (E_nk² − E_n²)/2, which turns the bracket into (θ_n/E_n − θ_nk/E_nk)/2, and the sums over
+n of the two terms coincide (the sets n + φ and n + k + φ are the same); Phi(−k) = Phi(k).
 
 Temperature. For a static fluctuation (q0 = 0) the partial fractions in z = iω + mu are exact, and
 T Σ_ω 1/(z² - E²) = -(1 - n_F(E - mu) - n_F(E + mu))/(2E), so T > 0 amounts to
@@ -55,22 +63,22 @@ def numerator(M, q1, k, L):
     return 2.0 * M * M + 0.5 * (q1 * q1 + q2 * q2)
 
 
-def _vac_kernel(x, M, q, k, L):
+def _vac_kernel(x, M, q, k, L, phi=0.0):
     a = math.sqrt(M * M + x * (1.0 - x) * q * q)
     La = L * a
-    c = math.cos(2.0 * PI * k * x)
+    c = math.cos(2.0 * PI * (k * x - phi))
     if La > 40.0:                                  # sinh/cosh -> 1 up to e^{-La}
         return 1.0 / (a * (1.0 - 2.0 * c * math.exp(-La)))
     return math.sinh(La) / (a * (math.cosh(La) - c))
 
 
-def phi_vac(k, q1, M, L):
-    """Vacuum part of Phi(k, q1)."""
+def phi_vac(k, q1, M, L, phi=0.0):
+    """Vacuum part of Phi(k, q1); twist phi: cos 2π(kx − φ) in the kernel."""
     q2 = 2.0 * PI * k / L
     q = math.hypot(q1, q2)
     k = abs(k)
     pts = [j / (2.0 * k) for j in range(1, 2 * k)] if k else None
-    I = quad(_vac_kernel, 0.0, 1.0, args=(M, q, k, L), points=pts, limit=200,
+    I = quad(_vac_kernel, 0.0, 1.0, args=(M, q, k, L, phi), points=pts, limit=200,
              epsabs=1e-13, epsrel=1e-11)[0]
     return numerator(M, q1, k, L) / (4.0 * PI) * I
 
@@ -93,27 +101,36 @@ def channel_integral(m, P, q1, c):
     return _antider(P, m, a, c) - _antider(-P, m, a, c)
 
 
-def channels(M, mu, L):
-    """Filled channels: list of (n, m_n, P_n) with m_n < mu, n ∈ Z."""
+def channels(M, mu, L, phi=0.0):
+    """Filled channels: list of (n, m_n, P_n) with m_n = sqrt(M² + (2π(n + φ)/L)²) < mu, n ∈ Z."""
     out = []
     if mu <= M:
         return out
-    n_max = int(math.floor(L * math.sqrt(mu * mu - M * M) / (2.0 * PI)))
-    for n in range(-n_max, n_max + 1):
-        m = math.hypot(M, 2.0 * PI * n / L)
+    n_max = int(math.floor(L * math.sqrt(mu * mu - M * M) / (2.0 * PI))) + 1
+    for n in range(-n_max - 1, n_max + 1):
+        m = math.hypot(M, 2.0 * PI * (n + phi) / L)
         if m < mu:
             out.append((n, m, math.sqrt(mu * mu - m * m)))
     return out
 
 
-def phi_mat(k, q1, M, mu, L):
+def _couplings(k, phi):
+    """(k', weight): both n → n ± k in general; one with weight 2 for k = 0 or φ ∈ {0, 1/2} (n → −n − k − 2φ)."""
+    if k == 0 or abs(2 * phi - round(2 * phi)) < 1e-12:
+        return ((k, 2.0),)
+    return ((k, 1.0), (-k, 1.0))
+
+
+def phi_mat(k, q1, M, mu, L, phi=0.0):
     """Matter part of Phi(k, q1) (T = 0)."""
     w = (2.0 * PI / L) ** 2
     s = 0.0
-    for n, m, P in channels(M, mu, L):
-        c = q1 * q1 + w * ((n + k) ** 2 - n * n)
-        s += channel_integral(m, P, q1, c)
-    return -numerator(M, q1, k, L) / (PI * L) * s
+    for n, m, P in channels(M, mu, L, phi):
+        nu = n + phi
+        for kk, wt in _couplings(k, phi):
+            c = q1 * q1 + w * ((nu + kk) ** 2 - nu * nu)
+            s += channel_integral(m, P, q1, c) * wt
+    return -numerator(M, q1, k, L) / (2.0 * PI * L) * s
 
 
 def _n_F(x, T):
@@ -137,51 +154,57 @@ def _pv_line(f, a, b, p0, pts):
             + f0 * math.log((b - p0) / (p0 - a)))
 
 
-def phi_mat_T(k, q1, M, mu, L, T):
+def phi_mat_T(k, q1, M, mu, L, T, phi=0.0):
     """Matter part of Phi(k, q1) at temperature T (T = 0: closed form)."""
     if T == 0.0:
-        return phi_mat(k, q1, M, mu, L)
+        return phi_mat(k, q1, M, mu, L, phi)
     w2 = (2.0 * PI / L) ** 2
     E_max = mu + 40.0 * T
     s = 0.0
     if E_max <= M:
         return 0.0
-    n_max = int(math.floor(math.sqrt(E_max * E_max - M * M) * L / (2.0 * PI)))
-    for n in range(-n_max, n_max + 1):
-        m = math.sqrt(M * M + w2 * n * n)
+    n_max = int(math.floor(math.sqrt(E_max * E_max - M * M) * L / (2.0 * PI))) + 1
+    for n in range(-n_max - 1, n_max + 1):
+        nu = n + phi
+        m = math.sqrt(M * M + w2 * nu * nu)
         if m >= E_max:
             continue
         pm = math.sqrt(E_max * E_max - m * m)
-        c = q1 * q1 + w2 * ((n + k) ** 2 - n * n)
         pts = [-math.sqrt(mu * mu - m * m), math.sqrt(mu * mu - m * m)] if m < mu else []
 
         def f(p, m=m):
             E = math.sqrt(m * m + p * p)
             return (_n_F(E - mu, T) + _n_F(E + mu, T)) / E
 
-        if q1 == 0.0:
-            s += quad(f, -pm, pm, points=pts or None, limit=400, epsabs=1e-14, epsrel=1e-11)[0] / c
-        else:
-            s += _pv_line(f, -pm, pm, -c / (2.0 * q1), pts) / (2.0 * q1)
-    return -numerator(M, q1, k, L) / (PI * L) * s
+        for kk, wt in _couplings(k, phi):
+            c = q1 * q1 + w2 * ((nu + kk) ** 2 - nu * nu)
+            if q1 == 0.0:
+                s += wt * quad(f, -pm, pm, points=pts or None, limit=400, epsabs=1e-14, epsrel=1e-11)[0] / c
+            else:
+                s += wt * _pv_line(f, -pm, pm, -c / (2.0 * q1), pts) / (2.0 * q1)
+    return -numerator(M, q1, k, L) / (2.0 * PI * L) * s
 
 
-def phi(k, q1, M, mu, L, T=0.0):
-    """Phi(k, q1) = Phi_vac + Phi_mat (M = M* ≠ 0)."""
-    return phi_vac(k, q1, M, L) + phi_mat_T(k, q1, M, mu, L, T)
+def phi(k, q1, M, mu, L, T=0.0, phi=0.0):
+    """Phi(k, q1) = Phi_vac + Phi_mat (M = M* ≠ 0); twist phi of the boundary condition."""
+    return phi_vac(k, q1, M, L, phi) + phi_mat_T(k, q1, M, mu, L, T, phi)
 
 
-def singular_q1(M, mu, L, k=0):
+_phi_total = phi          # the function, for callers whose parameter `phi` (the twist) shadows it
+
+
+def singular_q1(M, mu, L, k=0, phi=0.0):
     """Positions q1 of the logarithmic singularities: both levels on the Fermi surface."""
     w = (2.0 * PI / L) ** 2
     out = []
-    for n, m, P in channels(M, mu, L):
-        mk2 = M * M + w * (n + k) ** 2
-        if mk2 < mu * mu:                          # p1 = ±P_n, p1 + q1 = ±P_{n+k}
-            Pk = math.sqrt(mu * mu - mk2)
-            for q in (P + Pk, abs(P - Pk)):
-                if q > 0.0:
-                    out.append(q)
+    for n, m, P in channels(M, mu, L, phi):
+        for kk in {k, -k}:                         # levels n and n ± k (both couplings for φ ∉ {0, ½})
+            mk2 = M * M + w * (n + phi + kk) ** 2
+            if mk2 < mu * mu:                      # p1 = ±P_n, p1 + q1 = ±P_{n±k}
+                Pk = math.sqrt(mu * mu - mk2)
+                for q in (P + Pk, abs(P - Pk)):
+                    if q > 0.0:
+                        out.append(q)
     return sorted(set(round(q, 12) for q in out))
 
 
@@ -189,7 +212,7 @@ def singular_q1(M, mu, L, k=0):
 # Reference: direct quadrature of the original (unsymmetrized) formula
 # ==============================================================================
 
-def _direct_integrand(k, q1, M, mu, L, matter):
+def _direct_integrand(k, q1, M, mu, L, matter, phi=0.0):
     w = 2.0 * PI / L
 
     def B(E1, E2, th1, th2):
@@ -201,9 +224,9 @@ def _direct_integrand(k, q1, M, mu, L, matter):
         return (t1 - t2) / d
 
     def f(p, n):
-        E1 = math.sqrt(M * M + p * p + (w * n) ** 2)
-        E2 = math.sqrt(M * M + (p + q1) ** 2 + (w * (n + k)) ** 2)
-        N = 2.0 * M * M + q1 * (p + q1) + k * w * w * (n + k)
+        E1 = math.sqrt(M * M + p * p + (w * (n + phi)) ** 2)
+        E2 = math.sqrt(M * M + (p + q1) ** 2 + (w * (n + phi + k)) ** 2)
+        N = 2.0 * M * M + q1 * (p + q1) + k * w * w * (n + phi + k)
         th1, th2 = float(E1 > mu), float(E2 > mu)
         b = B(E1, E2, th1, th2)
         if b is None:                               # E1 = E2: the limit -d/dE²(θ/E)
@@ -214,19 +237,19 @@ def _direct_integrand(k, q1, M, mu, L, matter):
     return f
 
 
-def phi_direct_mat(k, q1, M, mu, L, epsrel=1e-11):
+def phi_direct_mat(k, q1, M, mu, L, epsrel=1e-11, phi=0.0):
     """Matter part straight from the original (unsymmetrized) formula: Σ_n ∫dp1 N (B - B_vac).
     The integrand has compact support (one of the levels below mu). For tests."""
     w = 2.0 * PI / L
-    f = _direct_integrand(k, q1, M, mu, L, matter=True)
+    f = _direct_integrand(k, q1, M, mu, L, matter=True, phi=phi)
     ns = set()
-    for n, _, _ in channels(M, mu, L):
+    for n, _, _ in channels(M, mu, L, phi):
         ns.update((n, n - k))
     tot = 0.0
     for n in sorted(ns):
         pts = []
         for nn, sh in ((n, 0.0), (n + k, q1)):
-            m2 = M * M + (w * nn) ** 2
+            m2 = M * M + (w * (nn + phi)) ** 2
             if m2 < mu * mu:
                 P = math.sqrt(mu * mu - m2)
                 pts += [P - sh, -P - sh]
@@ -237,11 +260,11 @@ def phi_direct_mat(k, q1, M, mu, L, epsrel=1e-11):
     return tot / (2.0 * PI * L)
 
 
-def phi_direct_vac(k, q1, M, L, n_cut=300):
+def phi_direct_vac(k, q1, M, L, n_cut=300, phi=0.0):
     """Vacuum part by direct summation over |n| ≤ n_cut (p1 integral by quad) plus the continuum
     tail |n| > n_cut. For tests."""
     w = 2.0 * PI / L
-    f = _direct_integrand(k, q1, M, -1.0, L, matter=False)
+    f = _direct_integrand(k, q1, M, -1.0, L, matter=False, phi=phi)
     tot = 0.0
     for n in range(-n_cut, n_cut + 1):
         c = -q1 / 2.0
@@ -262,7 +285,7 @@ import numpy as np
 _GL_X, _GL_W = np.polynomial.legendre.leggauss(32)
 
 
-def phi_vac_vec(k, q1, M, L, n_sub=None):
+def phi_vac_vec(k, q1, M, L, n_sub=None, phi=0.0):
     """Phi_vac(k, q1) for an array q1: composite Gauss–Legendre in x (k half-periods resolved)."""
     q1 = np.asarray(q1, float)
     k = abs(int(k))
@@ -274,36 +297,42 @@ def phi_vac_vec(k, q1, M, L, n_sub=None):
     q2 = (2.0 * PI * k / L) ** 2
     a = np.sqrt(M * M + np.outer(q1 * q1 + q2, x * (1.0 - x)))
     La = L * a
-    c = np.cos(2.0 * PI * k * x)[None, :]
+    c = np.cos(2.0 * PI * (k * x - phi))[None, :]
     ex = np.exp(-np.minimum(La, 700.0))
     ker = (1.0 - ex * ex) / (a * (1.0 + ex * ex - 2.0 * c * ex))      # sinh/(cosh - c), overflow-safe
     N = 2.0 * M * M + 0.5 * (q1 * q1 + q2)
     return N / (4.0 * PI) * (ker @ wx)
 
 
-def phi_mat_vec(k, q1, M, mu, L):
+def phi_mat_vec(k, q1, M, mu, L, phi=0.0):
     """Phi_mat(k, q1) at T = 0 for an array q1 > 0 (closed form)."""
     q1 = np.asarray(q1, float)
     w2 = (2.0 * PI / L) ** 2
     s = np.zeros_like(q1)
     a = 2.0 * q1
-    for n, m, P in channels(M, mu, L):
-        c = q1 * q1 + w2 * ((n + k) ** 2 - n * n)
-        D = np.sqrt(c * c + a * a * m * m)
-        up, um = (-c + D) / (a * m), (-c - D) / (a * m)
+    for n, m, P in channels(M, mu, L, phi):
+        nu = n + phi
         uP, uM = (P + mu) / m, (mu - P) / m                    # u(±P), sqrt(m² + P²) = mu
-        with np.errstate(divide='ignore'):
-            s += (np.log(np.abs((uP - up) / (uP - um))) - np.log(np.abs((uM - up) / (uM - um)))) / D
+        for kk, wt in _couplings(k, phi):
+            c = q1 * q1 + w2 * ((nu + kk) ** 2 - nu * nu)
+            D = np.sqrt(c * c + a * a * m * m)
+            up, um = (-c + D) / (a * m), (-c - D) / (a * m)
+            with np.errstate(divide='ignore'):
+                s += wt * (np.log(np.abs((uP - up) / (uP - um)))
+                                            - np.log(np.abs((uM - up) / (uM - um)))) / D
     N = 2.0 * M * M + 0.5 * (q1 * q1 + w2 * k * k)
-    return -N / (PI * L) * s
+    return -N / (2.0 * PI * L) * s
 
 
-def phi_vec(k, q1, M, mu, L):
+def phi_vec(k, q1, M, mu, L, phi=0.0):
     """Phi(k, q1) at T = 0 for an array q1 > 0."""
-    return phi_vac_vec(k, q1, M, L) + phi_mat_vec(k, q1, M, mu, L)
+    return phi_vac_vec(k, q1, M, L, phi=phi) + phi_mat_vec(k, q1, M, mu, L, phi)
 
 
-def scan_min(M, mu, L, T=1e-3, q_max=10.0, n_q=400, k_max=None):
+N_DIPS = 3        # finite-T evaluations at the deepest singular dips only
+
+
+def scan_min(M, mu, L, T=1e-3, q_max=10.0, n_q=400, k_max=None, phi=0.0):
     """
     min over k ≥ 0 and q1 ∈ (0, q_max] of Phi at temperature T. The T = 0 closed form on a q-grid is
     accurate away from the singular points q_s; at every q_s ≤ q_max Phi is evaluated at T exactly
@@ -312,9 +341,10 @@ def scan_min(M, mu, L, T=1e-3, q_max=10.0, n_q=400, k_max=None):
     k_max = k_max if k_max is not None else int(q_max * L / (2.0 * PI))
     q = np.linspace(q_max / n_q, q_max, n_q)
     best = dict(phi_min=math.inf, k=None, q1=None, singular=False)
+    dips = []
     for k in range(0, k_max + 1):
-        v = phi_vec(k, q, M, mu, L)
-        qs = [x for x in singular_q1(M, mu, L, k) if 0.0 < x <= q_max]
+        v = phi_vec(k, q, M, mu, L, phi)
+        qs = [x for x in singular_q1(M, mu, L, k, phi) if 0.0 < x <= q_max]
         if qs:   # drop grid points within the thermal width of a singularity
             near = np.min(np.abs(q[:, None] - np.array(qs)[None, :]), axis=1) < 50.0 * T
             v = np.where(near, np.inf, v)
@@ -322,8 +352,12 @@ def scan_min(M, mu, L, T=1e-3, q_max=10.0, n_q=400, k_max=None):
         if v[i] < best['phi_min']:
             best = dict(phi_min=float(v[i]), k=k, q1=float(q[i]), singular=False)
         if T > 0.0:
-            for x in qs:
-                val = phi(k, x, M, mu, L, T)
-                if val < best['phi_min']:
-                    best = dict(phi_min=val, k=k, q1=x, singular=True)
+            for x in qs:   # T = 0 value at a distance ~T from the singularity: ranks the dips (log cut-off)
+                pr = float(np.min(phi_vec(k, np.array([x - 3 * T, x + 3 * T]), M, mu, L, phi)))
+                dips.append((pr, k, x))
+    if T > 0.0:
+        for _, k, x in sorted(dips)[:N_DIPS]:
+            val = _phi_total(k, x, M, mu, L, T, phi)
+            if val < best['phi_min']:
+                best = dict(phi_min=val, k=k, q1=x, singular=True)
     return best

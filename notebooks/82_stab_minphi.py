@@ -1,12 +1,12 @@
 """
 "Phase diagram" of the stability of the homogeneous solution: colour = min over q1 ∈ (0, 10] of the second
-variation Phi(k, q1) at T = 1e-3 (M* = M*(mu, L) from njl3.b0). Blue Phi > 0 — stable, red Phi < 0 —
+variation Phi(k, q1) at T = 1e-3 (M* = M*(mu, L) from njl3.hom; twist φ, coupling g). Blue Phi > 0 — stable, red Phi < 0 —
 unstable against an inhomogeneous fluctuation. Phase T (M* = 0) is left blank (formula not applicable).
 
 Left: min over q1 and all k ≥ 0; right: k = 0 only (modulation along x1 only).
 
-    python notebooks/82_stab_minphi.py [--region MU0 MU1 L0 L1 NAME] [--n MU_N L_N]
-→ output/82_stab_minphi_<NAME>.npz / .png
+    python notebooks/82_stab_minphi.py [--phi PHI] [--g G] [--region MU0 MU1 L0 L1 NAME] [--n MU_N L_N]
+→ output/82_stab_minphi_<NAME>.npz / .png (φ = 0, g = −1), otherwise 82_stab_minphi_<NAME>_phi<φ>_g<g>.*
 """
 import argparse
 import os
@@ -26,14 +26,14 @@ T_MAP = 1e-3
 
 def point(args):
     warnings.simplefilter('ignore')
-    from njl3.b0 import phase_at
+    from njl3.hom import phase_at
     from njl3.stab.formulas import scan_min
-    mu, L = args
-    ph, M = phase_at(mu, L, G)
+    mu, L, phi, g = args
+    ph, M = phase_at(mu, L, g, phi)
     if M == 0.0:
         return ph, M, np.nan, np.nan, -1
-    b = scan_min(M, mu, L, T=T_MAP)
-    b0 = scan_min(M, mu, L, T=T_MAP, k_max=0)
+    b = scan_min(M, mu, L, T=T_MAP, phi=phi)
+    b0 = scan_min(M, mu, L, T=T_MAP, k_max=0, phi=phi)
     return ph, M, b['phi_min'], b0['phi_min'], b['k']
 
 
@@ -42,23 +42,26 @@ def main():
     ap.add_argument('--region', nargs=5, default=['0.05', '7', '0.1', '10', 'full'])
     ap.add_argument('--n', type=int, nargs=2, default=(200, 200))
     ap.add_argument('--plot-only', action='store_true', help='redraw from the saved .npz')
+    ap.add_argument('--phi', type=float, default=0.0)
+    ap.add_argument('--g', type=float, default=-1.0)
     a = ap.parse_args()
+    tag = '' if (a.phi == 0.0 and a.g == -1.0) else f'_phi{a.phi:g}_g{a.g:g}'
     if a.plot_only:
-        d = np.load(os.path.join(OUT, f'82_stab_minphi_{a.region[4]}.npz'))
-        return plot(d['mu'], d['L'], d['phase'], d['phi_min'], d['phi_min_k0'], a.region[4])
+        d = np.load(os.path.join(OUT, f'82_stab_minphi_{a.region[4]}{tag}.npz'))
+        return plot(d['mu'], d['L'], d['phase'], d['phi_min'], d['phi_min_k0'], a.region[4] + tag)
     mu0, mu1, L0, L1 = map(float, a.region[:4])
     name = a.region[4]
     mus, Ls = np.linspace(mu0, mu1, a.n[0]), np.linspace(L0, L1, a.n[1])
     t = time.time()
     with Pool(os.cpu_count()) as pool:
-        rows = pool.map(point, [(mu, L) for mu in mus for L in Ls], chunksize=16)
-    print(f'{name}: {len(rows)} points, {time.time() - t:.0f} s')
+        rows = pool.map(point, [(mu, L, a.phi, a.g) for mu in mus for L in Ls], chunksize=16)
+    print(f'{name}{tag}: {len(rows)} points, {time.time() - t:.0f} s', flush=True)
     sh = (len(mus), len(Ls))
     phase = np.array([r[0] for r in rows]).reshape(sh)
     M, pmin, pmin0, kst = (np.array([r[i] for r in rows], float).reshape(sh) for i in range(1, 5))
-    np.savez(os.path.join(OUT, f'82_stab_minphi_{name}.npz'), mu=mus, L=Ls, phase=phase, M=M,
-             phi_min=pmin, phi_min_k0=pmin0, k=kst)
-    plot(mus, Ls, phase, pmin, pmin0, name)
+    np.savez(os.path.join(OUT, f'82_stab_minphi_{name}{tag}.npz'), mu=mus, L=Ls, phase=phase, M=M,
+             phi_min=pmin, phi_min_k0=pmin0, k=kst, phi=a.phi, g=a.g)
+    plot(mus, Ls, phase, pmin, pmin0, name + tag)
 
 
 def plot(mus, Ls, phase, pmin, pmin0, name):

@@ -24,3 +24,4 @@ label.inline { display: flex; gap: 6px; align-items: center; font-size: 13px; co
 @media (max-width: 1000px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
 }
+.seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
