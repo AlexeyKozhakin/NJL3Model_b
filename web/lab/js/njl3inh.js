@@ -137,8 +137,19 @@ function segInt(a, c, M, bs, k, mu) {
 }
 
 // уровни |k_n| < mu с кратностью: [{k, C}], по возрастанию |k|
+const LEVELS = new Map();
 export function levels(mu, L, phi) {
   if (mu <= 0) return [];
+  const key = mu + ',' + L + ',' + phi;
+  let v = LEVELS.get(key);
+  if (!v) {
+    if (LEVELS.size > 4096) LEVELS.clear();
+    v = levelsRaw(mu, L, phi);
+    LEVELS.set(key, v);
+  }
+  return v;
+}
+function levelsRaw(mu, L, phi) {
   const m = new Map(), nmax = Math.floor(L * mu / (2 * PI)) + 1;
   for (let n = -nmax - 1; n <= nmax; n++) {
     const k = Math.abs(2 * PI * (n + phi) / L);
@@ -162,9 +173,21 @@ export function omegaMuL(M, b, mu, L, phi) {
   return -tot / (PI * L);
 }
 
+// Ω_L(0, b) and Ω_μL(0, b) do not depend on b (at M = 0, b only shifts the momentum): cached at b = 0, as in Python
+const ZERO = new Map();
+function zeroTerms(mu, L, phi) {
+  const key = mu + ',' + L + ',' + phi;
+  let v = ZERO.get(key);
+  if (v === undefined) {
+    if (ZERO.size > 4096) ZERO.clear();
+    v = omegaL(0, 0, L, phi) + omegaMuL(0, 0, mu, L, phi);
+    ZERO.set(key, v);
+  }
+  return v;
+}
 export function omegaRel(M, b, mu, L, g, phi) {
   if (M === 0) return 0;
-  return M * M / (2 * g) + dU(M, b) + omegaL(M, b, L, phi) - omegaL(0, b, L, phi) + omegaMuL(M, b, mu, L, phi) - omegaMuL(0, b, mu, L, phi);
+  return M * M / (2 * g) + dU(M, b) + omegaL(M, b, L, phi) + omegaMuL(M, b, mu, L, phi) - zeroTerms(mu, L, phi);
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,8 @@
+.tlabel { display: flex; flex-direction: column; gap: 2px; }
+.tlabel input[type="range"] { width: 180px; }
+.small { font-size: 12px; }
+.point-head { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; margin-bottom: 10px; }
+.point-grid2 { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .point-grid2 { grid-template-columns: minmax(0, 1fr); } }
+.chart-land { height: min(70vh, 620px); min-height: 380px; }
+.channels tr.best td { font-weight: 700; }

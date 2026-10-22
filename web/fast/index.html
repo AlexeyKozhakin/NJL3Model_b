@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NJL₃ (M, b): быстрый расчёт</title>
+  <meta name="description" content="Фазовая диаграмма NJL3 на R²×S¹ по (M, b), полностью в браузере: быстрый поиск глобального минимума (асимптотика каналов, Ньютон, разведка), рельеф Ω(M, b) и все локальные минимумы в точке.">
+  <link rel="stylesheet" href="../b0/css/style.css">
+  <link rel="stylesheet" href="../lab/css/lab.css">
+  <link rel="stylesheet" href="css/fast.css">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+<div class="viz-root">
+  <header class="page-header">
+    <h1>NJL₃ на ℝ²×S¹ по (M, b): всё в браузере</h1>
+    <p class="lead">
+      Глобальный минимум Ω(M, b) (киральная спираль) считается прямо здесь, без заранее посчитанных карт:
+      однородное решение (точно), ямы каналов у порогов S<sub>j</sub> по асимптотике M = e<sup>−A/c−½</sup> с уточнением
+      Ньютоном, в полосе μ ≈ π — плотная разведка по (M, b). Температура T — порог выживания щелей (T<sub>c</sub> =
+      0.57·(S/μ)·M*). Внизу — рельеф Ω(M, b) в точке со <b>всеми</b> локальными минимумами.
+    </p>
+  </header>
+
+  <section class="controls" aria-label="Параметры">
+    <span class="presets seg">
+      <span class="muted">φ</span>
+      <button data-phi="0">0</button><button data-phi="0.1">0.1</button><button data-phi="0.2">0.2</button>
+      <button data-phi="0.3">0.3</button><button data-phi="0.4">0.4</button><button data-phi="0.5">½</button>
+    </span>
+    <label>g <select id="g"><option value="-1">−1</option><option value="1">+1</option></select></label>
+    <label class="tlabel">T = <b id="T-val"></b>
+      <input id="T-exp" type="range" min="-8" max="-0.5" step="0.25" value="-3">
+      <span class="muted small"><input id="T-zero" type="checkbox"> T = 0</span>
+    </label>
+    <fieldset><legend>μ</legend>
+      <input id="mu-lo" type="number" step="0.01" value="3.05"> – <input id="mu-hi" type="number" step="0.01" value="3.3">
+    </fieldset>
+    <fieldset><legend>L</legend>
+      <input id="L-lo" type="number" step="0.05" value="2" min="0.05"> – <input id="L-hi" type="number" step="0.05" value="10">
+    </fieldset>
+    <label>Сетка
+      <select id="res"><option value="20">20 × 20</option><option value="40" selected>40 × 40</option><option value="60">60 × 60</option><option value="90">90 × 90</option></select>
+    </label>
+    <button id="build" class="primary">Построить карту</button>
+    <span class="presets">
+      <button data-preset="3.05,3.3,2,10">Полоса μ ≈ π</button>
+      <button data-preset="3,3.4,2,10">Пики</button>
+      <button data-preset="0.05,7,0.1,10">Вся область</button>
+    </span>
+  </section>
+  <div class="progress" aria-hidden="true"><div id="progress-bar"></div></div>
+  <p id="status" class="status" role="status"></p>
+
+  <section class="maps">
+    <div class="card"><h2>M*</h2><div id="map-M" class="chart chart-map"></div></div>
+    <div class="card"><h2>b*</h2><div id="map-b" class="chart chart-map"></div></div>
+  </section>
+  <p class="note">Клик по карте — разбор точки ниже. Серое — M = 0 (щели не переживают T). Карта считается в фоновых потоках;
+    крупная сетка и вся область — долго (несколько минут), в полосе μ ≈ π точки самые дорогие.</p>
+
+  <section class="layout-full">
+    <div class="card">
+      <h2>Точка: рельеф Ω(M, b) и все локальные минимумы</h2>
+      <div class="point-head">
+        <form id="point-form" class="point-form">
+          <label>μ <input id="pt-mu" type="number" step="0.0001" value="3.1409"></label>
+          <label>L <input id="pt-L" type="number" step="0.01" value="10" min="0.05"></label>
+          <button type="submit" class="primary">Рассчитать</button>
+        </form>
+        <span class="presets">
+          <span class="muted">Интересные точки:</span>
+          <button data-pt="3.1409,10,0">μ ≈ π, L = 10, φ = 0 (12 ям)</button>
+          <button data-pt="3.1409,9.0667,0.5">μ ≈ π, L = 9.07, φ = ½ (9 ям)</button>
+          <button data-pt="3.1273,4.8667,0.5">μ = 3.127, L = 4.87, φ = ½ (3 почти равные)</button>
+        </span>
+      </div>
+      <div class="point-grid2">
+        <div>
+          <table id="point-table" class="point-table"></table>
+          <h3>Локальные минимумы Ω(M, b)</h3>
+          <div style="overflow-x:auto"><table id="minima" class="channels"></table></div>
+          <p class="note">Все ямы плотной сетки 70×70 (M ∈ [0.03, 3.5], b ∈ [0, μ + 0.5]) после уточнения Ньютоном, и минимумы при b = 0.
+            ΔΩ — отставание от самой глубокой. Номера совпадают с отметками на рельефе.</p>
+        </div>
+        <div>
+          <div class="slice-controls">
+            <label>Шкала цвета
+              <select id="land-scale">
+                <option value="deep">глубина: от Ω<sub>min</sub> до 0</option>
+                <option value="near">около дна: Ω<sub>min</sub> … Ω<sub>min</sub>/2</option>
+                <option value="full">полная</option>
+              </select>
+            </label>
+            <label>Разрешение
+              <select id="land-res"><option value="60">60 × 60</option><option value="100" selected>100 × 100</option><option value="150">150 × 150</option></select>
+            </label>
+          </div>
+          <div id="landscape" class="chart chart-land"></div>
+          <p class="note">Ω(M, b) − Ω(0, 0). Пунктир — пороги b = S<sub>j</sub>; кружки с номерами — локальные минимумы, звезда — глобальный.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    <p>Метод: <code>njl3/fast/PLAN.md</code>; сверка с медленным эталоном <code>njl3.inh</code> — <code>notebooks/95_fast_validate.py</code>.
+      Другие приложения: <a href="../lab/">лаборатория</a>, <a href="../full/">статья 2 (φ = 0)</a>. Версия 0.1.0.</p>
+  </footer>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

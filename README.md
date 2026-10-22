@@ -149,6 +149,7 @@ pytest tests/b0                   # all, incl. direct numerical integration and 
 | `web/stab/` | web application: stability map and $\Phi(q_1)$ at a point (<https://alexeykozhakin.github.io/NJL3Model_b/web/stab/>) |
 | `njl3/hom/`, `tests/hom/` | homogeneous case for an arbitrary twist $\varphi$ and coupling $g$ (certified minimum; $\varphi=0$ coincides with `njl3.b0`) |
 | `njl3/inh/`, `tests/inh/` | $\Omega(M, b)$ and its global minimum for a twist $\varphi\in\{0,0.1,\dots,0.5\}$ and any $g$ (tables $s_\varphi$; $\varphi=0$ coincides with `njl3.full`) |
+| `njl3/fast/`, `tests/fast/`, `web/fast/` | fast $(M, b)$ minimum (channel asymptotics, Newton, dense scan near $\mu\approx\pi$); browser app with the landscape $\Omega(M,b)$ and all local minima (<https://alexeykozhakin.github.io/NJL3Model_b/web/fast/>); plan `njl3/fast/PLAN.md` |
 | `web/lab/` | web application with tabs: homogeneous phase diagram for any $\varphi$, $g$; $(M, b)$ maps for $\varphi=0\dots0.5$, $g=\pm1$; stability (<https://alexeykozhakin.github.io/NJL3Model_b/web/lab/>) |
 | `njl3/full/`, `web/full/`, `tests/full/` | general case $(M,b)$ (work in progress) |
 | `functions/`, `gpu/` | earlier numerical integrators for $(M,b)$ (CPU/numba, PyTorch) |

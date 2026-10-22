@@ -33,6 +33,8 @@ jobs:
         run: pytest tests/hom -q
       - name: Tests inhomogeneous case, twist phi
         run: pytest tests/inh -q
+      - name: Tests fast (M, b) algorithm
+        run: pytest tests/fast -q
 
   # njl3.b0 as a referee installs it: clean environment, no numba, no research code
   b0-matrix:
