@@ -219,7 +219,9 @@
               <label>L <input id="x-pt-L" type="number" step="0.01" value="2.0" min="0.05"></label>
               <label>T <input id="x-pt-T" type="number" step="0.0001" value="0.001" min="0"></label>
               <button type="submit" class="primary">Рассчитать</button>
+              <button type="button" id="x-cmp-add" title="Добавить точку (μ, L, T) с текущими φ и g в сравнение">+ в сравнение</button>
             </form>
+            <p class="cmp-feedback"><span id="x-cmp-msg"></span> <a href="#" id="x-cmp-goto" hidden>к сравнению ↓</a></p>
             <table id="x-point-table" class="point-table"></table>
             <h3>Каналы у порогов</h3>
             <div style="overflow-x:auto"><table id="x-channels" class="channels"></table></div>
@@ -240,6 +242,25 @@
         </div>
       </div>
     </section>
+    <section id="x-cmp-section" class="card cmp-card" aria-live="polite">
+      <h2>Сравнение точек</h2>
+      <div class="cmp-controls">
+        <div id="x-cmp-list" class="cmp-list"></div>
+        <label class="inline"><input id="x-cmp-norm" type="checkbox"> нормировать Ω на |Ω*|</label>
+        <label class="inline"><input id="x-cmp-logM" type="checkbox"> логарифмическая шкала M</label>
+        <button id="x-cmp-clear" type="button">Очистить</button>
+      </div>
+      <p class="note">Добавить точку: «+ в сравнение» в панели «Точка» или щелчок по карте с зажатым <b>Shift</b>. Каждая точка
+        запоминает свои φ, g и T. Для каждой ищется глобальный минимум (M*, b*) и строятся два среза через него. До 8 точек.</p>
+      <div class="slices">
+        <div><h3>Ω(M, b*) − Ω(0, 0) — по M при b = b*</h3><div id="x-cmp-M" class="chart chart-cmp"></div></div>
+        <div><h3>Ω(M*, b) − Ω(0, 0) — по b при M = M*</h3><div id="x-cmp-b" class="chart chart-cmp"></div></div>
+      </div>
+      <p class="note">Закрашенный кружок — глобальный минимум. Если M* = 0 (b* не определено), M-срез строится при b = 0, а b-срез
+        для этой точки не рисуется. При нормировке кривая делится на |Ω*| (глубина ямы = −1). Узкие ямы у порогов (b* ≈ S<sub>j</sub>,
+        ширина ~M*) удобнее смотреть в логарифмической шкале M.</p>
+    </section>
+
     <section class="layout-full">
       <div class="card">
         <h2>Срезы через минимум</h2>

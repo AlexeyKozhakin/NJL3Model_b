@@ -41,7 +41,7 @@ const CFG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['la
               toImageButtonOptions: { format: 'png', scale: 2, filename: 'njl3_full' } };
 
 const state = { xphi: 0, xg: -1, bnd: true, asym: true, xmu: 4.0, xL: 2.0, xT: 1e-3, zoom: 'near', region: 'full',
-                vmu0: 0.05, vmu1: 7, vL0: 0.1, vL1: 10 };
+                vmu0: 0.05, vmu1: 7, vL0: 0.1, vL1: 10, cmp: '', cmpNorm: false, cmpLogM: false };
 const mapsCache = {};
 const mapUrl = () => `data/inh/maps_phi${state.xphi}_g${state.xg}_${state.region}.json`;
 async function loadRegion() {
@@ -120,6 +120,7 @@ function drawMaps() {
     L.forEach((Li, i) => mu.forEach((mj, j) => { if (asym[i][j]) { ax.push(Li); ay.push(mj); } }));
     over.push({ type: 'scatter', mode: 'markers', x: ax, y: ay, marker: { size: 2.5, color: t.muted }, hoverinfo: 'skip', showlegend: false });
   }
+  over.push(...cmpTrace());
   over.push({ type: 'scatter', mode: 'markers', x: [state.xL], y: [state.xmu], hoverinfo: 'skip', showlegend: false,
               marker: { symbol: 'circle-open', size: 13, color: t.ink, line: { width: 2.5, color: t.ink } } });
   // область просмотра (кнопки-пресеты и выделение мышью) — общая для обеих карт
@@ -149,7 +150,7 @@ worker.onmessage = ({ data }) => {
   const cb = pending.get(data.job); if (cb) cb(data);
 };
 worker.onerror = (e) => { $('status').textContent = 'Ошибка фонового потока: ' + (e.message || e.filename || 'неизвестная'); };
-function ask(msg, cb) { const id = ++job; pending.set(id, cb); worker.postMessage({ ...msg, g: state.xg, phi: state.xphi, job: id }); return id; }
+function ask(msg, cb) { const id = ++job; pending.set(id, cb); worker.postMessage({ g: state.xg, phi: state.xphi, ...msg, job: id }); return id; }
 
 function linspace(a, b, n) { return Array.from({ length: n }, (_, i) => a + (b - a) * i / (n - 1)); }
 
@@ -308,6 +309,113 @@ async function reloadMaps(resetView) {
   drawMaps();
 }
 
+// ---------------------------------------------------------------------------
+// Сравнение точек: глобальный минимум и срезы Ω(M, b*), Ω(M*, b); каждая точка помнит φ, g, T
+// ---------------------------------------------------------------------------
+const CMP_COLORS = ['#2a78d6', '#eb6834', '#1baa6e', '#8f5bd6', '#c9a227', '#d6457a', '#3aa6b9', '#7a6a58'];
+const CMP_MAX = CMP_COLORS.length;
+const CMP_RES = new Map();                  // key -> { r, M: {x, y}, b: {x, y} }
+const cmpKey = (q) => [q.mu, q.L, q.phi, q.g, q.T].join(':');
+function cmpList() {
+  return state.cmp ? state.cmp.split(';').filter(Boolean).map((s) => {
+    const [mu, L, phi, g, T] = s.split(':').map(Number);
+    return { mu, L, phi, g, T };
+  }) : [];
+}
+function cmpSave(list) { state.cmp = list.map(cmpKey).join(';'); writeHash(); }
+const cmpLabel = (q) => `μ = ${q.mu}, L = ${q.L}, φ = ${q.phi}, g = ${q.g > 0 ? '+1' : '−1'}, T = ${fmtT(q.T)}`;
+
+function cmpFeedback(msg) {
+  const n = cmpList().length;
+  $('cmp-msg').textContent = msg ? `${msg}; в сравнении ${n} ${n === 1 ? 'точка' : n < 5 ? 'точки' : 'точек'}.` : '';
+  $('cmp-goto').hidden = n === 0;
+  $('cmp-add').textContent = n ? `+ в сравнение (${n})` : '+ в сравнение';
+}
+function cmpAdd(mu, L) {
+  const list = cmpList();
+  const q = { mu: +(+mu).toFixed(4), L: +(+L).toFixed(4), phi: state.xphi, g: state.xg, T: state.xT };
+  if (list.some((x) => cmpKey(x) === cmpKey(q))) { cmpFeedback('эта точка уже в сравнении'); return; }
+  if (list.length >= CMP_MAX) { cmpFeedback(`в сравнении уже ${CMP_MAX} точек — удалите лишние`); return; }
+  list.push(q); cmpSave(list); drawMaps(); drawCompare();
+  cmpFeedback(`✓ добавлена ${cmpLabel(q)}`);
+}
+function cmpRemove(k) { const list = cmpList(); list.splice(k, 1); cmpSave(list); drawMaps(); drawCompare(); cmpFeedback(''); }
+
+function cmpTrace() {
+  const list = cmpList();
+  if (!list.length) return [];
+  return [{ type: 'scatter', mode: 'markers', x: list.map((q) => q.L), y: list.map((q) => q.mu), text: list.map(cmpLabel),
+            hovertemplate: '%{text}<extra>сравнение</extra>', showlegend: false,
+            marker: { size: 11, color: list.map((_, k) => CMP_COLORS[k]), line: { color: '#ffffff', width: 1.5 } } }];
+}
+
+// компьютинг одной точки: минимум, затем два среза (асинхронно, в фоновом потоке)
+function cmpCompute(q) {
+  const key = cmpKey(q);
+  if (CMP_RES.has(key)) return;
+  const rec = { r: null, M: null, b: null };
+  CMP_RES.set(key, rec);
+  const base = { mu: q.mu, L: q.L, g: q.g, phi: q.phi };
+  ask({ type: 'point', ...base, T: q.T }, ({ result: r }) => {
+    rec.r = r;
+    const Ms = r.M_star > 0 ? r.M_star : 0, bs = Number.isFinite(r.b_star) ? r.b_star : 0;
+    // M: геометрическая сетка (узкие ямы) + равномерная
+    const Mmax = Math.max(2.5, 1.5 * Ms);
+    const Mx = [...new Set([...linspace(Math.log(1e-4), Math.log(Mmax), 160).map(Math.exp), ...linspace(Mmax / 160, Mmax, 160)])].sort((a, c) => a - c);
+    ask({ type: 'slice', ...base, M: Mx, b: Mx.map(() => bs) }, ({ om }) => { rec.M = { x: Mx, y: Array.from(om) }; drawCompare(); });
+    if (Ms > 0) {
+      const bmax = q.mu + 1.0;
+      const near = Ms > 0 ? linspace(Math.max(0, bs - 10 * Ms), Math.min(bmax, bs + 10 * Ms), 121) : [];
+      const bx = [...new Set([...linspace(0, bmax, 241), ...near])].sort((a, c) => a - c);
+      ask({ type: 'slice', ...base, M: bx.map(() => Ms), b: bx }, ({ om }) => { rec.b = { x: bx, y: Array.from(om) }; drawCompare(); });
+    }
+    drawCompare();
+  });
+}
+
+function drawCompare() {
+  const t = tokens(), list = cmpList();
+  $('cmp-norm').checked = state.cmpNorm; $('cmp-logM').checked = state.cmpLogM;
+  $('cmp-list').innerHTML = list.length ? list.map((q, k) => {
+    const rec = CMP_RES.get(cmpKey(q)), r = rec && rec.r;
+    const res = r ? ` → ${r.phase}, M* = ${r.M_star > 0 ? r.M_star.toPrecision(4) : '0'}${Number.isFinite(r.b_star) ? ', b* = ' + r.b_star.toPrecision(4) : ''}` : ' → считаю…';
+    return `<span class="cmp-chip"><i style="background:${CMP_COLORS[k]}"></i>${cmpLabel(q)}${res}<button data-xcmp-del="${k}" title="убрать">×</button></span>`;
+  }).join('') : '<span class="muted">точек нет</span>';
+  document.querySelectorAll('[data-xcmp-del]').forEach((b) => b.addEventListener('click', () => cmpRemove(Number(b.dataset.xcmpDel))));
+  if (!list.length) { Plotly.purge($('cmp-M')); Plotly.purge($('cmp-b')); return; }
+  list.forEach(cmpCompute);
+  const trM = [], trB = [];
+  let Mright = 0.5;
+  list.forEach((q, k) => {
+    const rec = CMP_RES.get(cmpKey(q));
+    if (!rec || !rec.r) return;
+    const r = rec.r, col = CMP_COLORS[k], name = cmpLabel(q);
+    const sc = (y) => (!state.cmpNorm ? 1 : r.omega_star < 0 ? Math.abs(r.omega_star) : Math.max(...y.map(Math.abs), 1e-300));
+    Mright = Math.max(Mright, 1.5 * (r.M_star || 0), 2.0);
+    if (rec.M) {
+      const s = sc(rec.M.y);
+      trM.push({ type: 'scatter', mode: 'lines', x: rec.M.x, y: rec.M.y.map((v) => v / s), name, line: { color: col, width: 2 },
+                 hovertemplate: `${name}<br>M = %{x:.5g}<br>ΔΩ = %{y:.5e}<extra></extra>` });
+      trM.push({ type: 'scatter', mode: 'markers', x: [r.M_star > 0 ? r.M_star : (state.cmpLogM ? 1e-4 : 0)], y: [r.omega_star / s],
+                 showlegend: false, hoverinfo: 'skip', marker: { size: 9, color: col, line: { color: t.surface, width: 1.5 } } });
+    }
+    if (rec.b) {
+      const s = sc(rec.b.y);
+      trB.push({ type: 'scatter', mode: 'lines', x: rec.b.x, y: rec.b.y.map((v) => v / s), name, line: { color: col, width: 2 },
+                 hovertemplate: `${name}<br>b = %{x:.5g}<br>ΔΩ = %{y:.5e}<extra></extra>` });
+      trB.push({ type: 'scatter', mode: 'markers', x: [r.b_star], y: [r.omega_star / s], showlegend: false, hoverinfo: 'skip',
+                 marker: { size: 9, color: col, line: { color: t.surface, width: 1.5 } } });
+    }
+  });
+  const yr = state.cmpNorm ? { range: [-1.2, 1.5] } : {};
+  const lay = (xt, xa) => baseLayout(t, { showlegend: true, xaxis: { title: { text: xt }, ...xa },
+    yaxis: { title: { text: state.cmpNorm ? 'ΔΩ / |Ω*|' : 'Ω − Ω(0, 0)' }, zeroline: true, zerolinecolor: t.axis, zerolinewidth: 1.5,
+             exponentformat: 'power', ...yr },
+    legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { size: 10, color: t.ink2 } }, margin: { l: 64, r: 10, t: 8, b: 40 } });
+  Plotly.react($('cmp-M'), trM, lay('M', state.cmpLogM ? { type: 'log', range: [-4, Math.log10(Mright)], exponentformat: 'power' } : { range: [0, Mright] }), CFG);
+  Plotly.react($('cmp-b'), trB, lay('b', {}), CFG);
+}
+
 let started = false;
 export async function initInh() {
   if (started) { window.dispatchEvent(new Event('resize')); return; }
@@ -336,7 +444,20 @@ export async function initInh() {
     Promise.all(['map-M', 'map-b'].map((m) => Plotly.relayout($(m), { 'xaxis.range': [state.vL0, state.vL1], 'yaxis.range': [state.vmu0, state.vmu1] })))
       .finally(() => { syncing = false; });
   });
-  for (const id of ['map-M', 'map-b']) $(id).on('plotly_click', (ev) => { const p = ev.points[0]; if (p && p.x != null && p.y != null) runPoint(+p.y.toFixed(4), +p.x.toFixed(4)); });
+  for (const id of ['map-M', 'map-b']) $(id).on('plotly_click', (ev) => {
+    const p = ev.points[0];
+    if (!(p && p.x != null && p.y != null)) return;
+    if (ev.event && ev.event.shiftKey) cmpAdd(+p.y.toFixed(4), +p.x.toFixed(4)); else runPoint(+p.y.toFixed(4), +p.x.toFixed(4));
+  });
+  $('cmp-add').addEventListener('click', () => {
+    state.xT = Math.max(0, Number($('pt-T').value) || 0);
+    cmpAdd(Number($('pt-mu').value), Math.max(0.05, Number($('pt-L').value)));
+  });
+  $('cmp-clear').addEventListener('click', () => { cmpSave([]); drawMaps(); drawCompare(); cmpFeedback(''); });
+  $('cmp-goto').addEventListener('click', (e) => { e.preventDefault(); $('cmp-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  $('cmp-norm').addEventListener('change', () => { state.cmpNorm = $('cmp-norm').checked; writeHash(); drawCompare(); });
+  $('cmp-logM').addEventListener('change', () => { state.cmpLogM = $('cmp-logM').checked; writeHash(); drawCompare(); });
+  cmpFeedback(''); drawCompare();
   $('point-form').addEventListener('submit', (e) => {
     e.preventDefault();
     state.xT = Math.max(0, Number($('pt-T').value) || 0);
@@ -353,6 +474,6 @@ export async function initInh() {
 
 export function redrawInh() {
   if (!started) return;
-  drawMaps();
+  drawMaps(); drawCompare();
   if (lastPoint) { drawOmegaMap(lastPoint); drawChannel(lastPoint); drawSlices(lastPoint); }
 }
