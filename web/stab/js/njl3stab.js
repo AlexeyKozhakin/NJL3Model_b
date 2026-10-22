@@ -1,4 +1,4 @@
-// njl3stab.js — second variation Phi(k, q1) of the GN action on R²×S¹ (phi = 0) around the homogeneous
+// njl3stab.js — second variation Phi(k, q1) of the GN action on R²×S¹ (twist φ) around the homogeneous
 // solution M = M*(mu, L) (JavaScript port of njl3/stab/formulas.py).
 //
 //   Phi(k, q1) = ∫ dp1/(2πL) Σ_n N · (θ(E_n − mu)/E_n − θ(E_nk − mu)/E_nk) / (E_nk² − E_n²),
@@ -70,9 +70,17 @@ export function phiVac(k, q1, M, L, phi = 0) {
   k = Math.abs(k);
   const nSub = Math.max(4, 4 * k);
   const q = Math.hypot(q1, 2 * PI * k / L);
+  let edges = [];
+  for (let s = 0; s <= nSub; s++) edges.push(s / nSub);
+  if (M < 1e-2) {
+    // small mass: peaks of width ~M²/q² at x = 0, 1 (massless modes) — geometric grading to the ends
+    const g = [];
+    for (let i = 0; i < 48; i++) g.push(1e-16 * (0.5 / nSub / 1e-16) ** (i / 47));
+    edges = [...new Set([...edges, ...g, ...g.map((x) => 1 - x)])].sort((a, b) => a - b);
+  }
   let I = 0;
-  for (let s = 0; s < nSub; s++) {
-    const h = 0.5 / nSub, c = (s + 0.5) / nSub;
+  for (let s = 0; s + 1 < edges.length; s++) {
+    const h = 0.5 * (edges[s + 1] - edges[s]), c = 0.5 * (edges[s + 1] + edges[s]);
     for (let i = 0; i < 32; i++) {
       const x = c + h * X32[i];
       const a = Math.sqrt(M * M + x * (1 - x) * q * q);
@@ -108,7 +116,8 @@ function nF(x, T) {
   return 1 / (Math.exp(x / T) + 1);
 }
 
-// ∫_a^b g with geometric grading towards both ends (resolves Fermi steps of width ~T at the break points).
+// ∫_a^b g with geometric grading towards both ends (resolves Fermi steps of width ~T at the break points
+// and, with T → min(T, m), the peak of 1/E of width m at p = 0 for a light mode).
 function gradedIntegral(g, a, b, T) {
   if (!(b > a)) return 0;
   const mid = 0.5 * (a + b), pts = [a];
@@ -139,13 +148,15 @@ export function phiMatT(k, q1, M, mu, L, T, phi = 0) {
     if (m >= Emax) continue;
     const pm = Math.sqrt(Emax * Emax - m * m);
     const f = (p) => { const E = Math.sqrt(m * m + p * p); return (nF(E - mu, T) + nF(E + mu, T)) / E; };
+    const Tg = Math.min(T, m);                             // grading scale
     for (const kk of ks) {
       const c = q1 * q1 + w2 * ((nu + kk) ** 2 - nu * nu);
       const br = [-pm, pm];
+      if (m < 1e-2) br.push(0);                            // light mode: peak of 1/E at p = 0
       if (m < mu) { const P = Math.sqrt(mu * mu - m * m); br.push(-P, P); }
       if (q1 === 0) {
         br.sort((u, v) => u - v);
-        for (let j = 0; j + 1 < br.length; j++) s += wt * gradedIntegral(f, br[j], br[j + 1], T) / c;
+        for (let j = 0; j + 1 < br.length; j++) s += wt * gradedIntegral(f, br[j], br[j + 1], Tg) / c;
         continue;
       }
       const p0 = -c / (2 * q1);
@@ -158,7 +169,7 @@ export function phiMatT(k, q1, M, mu, L, T, phi = 0) {
       }
       br.sort((u, v) => u - v);
       let I = extra;
-      for (let j = 0; j + 1 < br.length; j++) I += gradedIntegral(g, br[j], br[j + 1], T);
+      for (let j = 0; j + 1 < br.length; j++) I += gradedIntegral(g, br[j], br[j + 1], Tg);
       s += wt * I / (2 * q1);
     }
   }
@@ -168,3 +179,7 @@ export function phiMatT(k, q1, M, mu, L, T, phi = 0) {
 export function phi(k, q1, M, mu, L, T = 0, phi_ = 0) {
   return phiVac(k, q1, M, L, phi_) + phiMatT(k, q1, M, mu, L, T, phi_);
 }
+
+// Phase T (M* = 0): Phi = ½ G(0⁺; mu, L, g, φ) + [loop at the regulator mass M_ZERO] (njl3/stab/formulas.py:
+// phi_zero). The constant ½ G(0⁺) is added by the caller (gapG0 from lab/js/njl3hom.js).
+export const M_ZERO = 1e-4;

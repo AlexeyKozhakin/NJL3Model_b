@@ -1,6 +1,6 @@
 // Интерфейс: карта устойчивости (готовые данные) и кривые Φ(k, q₁) в точке (считаются в браузере).
-import { findMinimum, phaseLabel } from '../../lab/js/njl3hom.js';
-import { channels, phi, phiMat, phiVac, singularQ1 } from './njl3stab.js';
+import { findMinimum, gapG0, phaseLabel } from '../../lab/js/njl3hom.js';
+import { M_ZERO, channels, phi, phiMat, phiVac, singularQ1 } from './njl3stab.js';
 
 const T_MAP = 1e-3, Q_MAX = 10;
 const $ = (id) => document.getElementById(id);
@@ -72,12 +72,18 @@ async function loadMap() {
   try {
     if (!CACHE.has(url)) CACHE.set(url, await (await fetch(url)).json());
     DATA = CACHE.get(url);
-    $('status').textContent = `φ = ${state.phi}, g = ${state.g}`;
+    $('status').textContent = `φ = ${state.phi}, g = ${state.g}` + mapNote();
   } catch (e) {
     DATA = null;
     $('status').textContent = `Карта для φ = ${state.phi}, g = ${state.g} не найдена (${url})`;
   }
   drawMap();
+}
+
+function mapNote() {
+  const hasT = DATA && DATA.phase.some((row) => row.includes('T'));
+  return hasT && !DATA.T_done
+    ? ' — фаза T (M* = 0) на этой карте ещё не посчитана (серое); кривые Φ(q₁) в её точках считаются по клику' : '';
 }
 
 function phaseCode(p) { return p === 'V' ? 0 : p === 'T' ? 2 : 1; }
@@ -93,10 +99,10 @@ function drawMap() {
   const traces = [];
   const hoverZ = m.phase.map((row, i) => row.map((p, j) =>
     `μ = ${m.mu[i].toFixed(4)}, L = ${m.L[j].toFixed(4)}<br>фаза ${p}` +
-    (p === 'T' ? '' : `<br>min Φ (T=10⁻³) = ${m.phi_min[i][j]}<br>только k=0: ${m.phi_min_k0[i][j]}<br>k* = ${m.k[i][j]}` +
+    (m.phi_min[i][j] === null ? '' : `<br>min Φ (T=10⁻³) = ${m.phi_min[i][j]}<br>только k=0: ${m.phi_min_k0[i][j]}<br>k* = ${m.k[i][j]}` +
       (m.T0_inf[i][j] ? '<br>T = 0: −∞' : ''))));
   if (q === 'k') {
-    const z = m.k.map((row, i) => row.map((v, j) => (m.phase[i][j].startsWith('I') ? v : null)));
+    const z = m.k.map((row, i) => row.map((v, j) => (m.phase[i][j] !== 'V' && v >= 0 ? v : null)));
     const zb = m.phase.map((row) => row.map((p) => (p === 'V' ? 1 : null)));
     traces.push({ type: 'heatmap', x: m.L, y: m.mu, z: zb, colorscale: [[0, t.pos], [1, t.pos]], showscale: false,
                   hoverinfo: 'skip' });
@@ -154,19 +160,21 @@ function qGrid(sing) {
 function computePoint() {
   const mu = state.mu, L = state.L, kmax = Math.max(0, Math.min(20, Math.round(state.kmax)));
   const ph_ = state.phi, g = state.g;
-  const r = findMinimum(mu, L, g, ph_), M = r.M, ph = phaseLabel(M, mu, L, ph_);
-  const out = { mu, L, M, ph, kmax, curves: [], ch: M > 0 ? channels(M, mu, L, ph_) : [] };
-  if (M === 0) return out;
+  const r = findMinimum(mu, L, g, ph_), Ms = r.M, ph = phaseLabel(Ms, mu, L, ph_);
+  // phase T (M* = 0): loop at the regulator mass plus the constant ½ G(0⁺) (njl3.stab.formulas.phi_zero)
+  const M = Ms === 0 ? M_ZERO : Ms, hG = Ms === 0 ? 0.5 * gapG0(mu, L, g, ph_) : 0;
+  const out = { mu, L, M: Ms, ph, kmax, hG, curves: [], ch: channels(M, mu, L, ph_) };
+  const phiT = (k, x) => hG + phi(k, x, M, mu, L, T_MAP, ph_);
   for (let k = 0; k <= kmax; k++) {
     const sing = singularQ1(M, mu, L, k, ph_).filter((x) => x > 0 && x <= Q_MAX);
     const q = qGrid(sing);
-    const v = q.map((x) => phiVac(k, x, M, L, ph_) + phiMat(k, x, M, mu, L, ph_));
+    const v = q.map((x) => hG + phiVac(k, x, M, L, ph_) + phiMat(k, x, M, mu, L, ph_));
     let vT = null;
     if (state.T) {
       // T = 10⁻³ differs from T = 0 only near the singularities (|Δ| < 1e-5 farther than ~0.3)
       vT = v.slice();
       for (let i = 0; i < q.length; i++)
-        if (sing.some((s) => Math.abs(q[i] - s) < 0.3)) vT[i] = phi(k, q[i], M, mu, L, T_MAP, ph_);
+        if (sing.some((s) => Math.abs(q[i] - s) < 0.3)) vT[i] = phiT(k, q[i]);
     }
     let minT0 = Infinity, qmin = null;
     for (let i = 0; i < q.length; i++) if (!sing.some((s) => Math.abs(q[i] - s) < 1e-3) && v[i] < minT0) { minT0 = v[i]; qmin = q[i]; }
@@ -174,7 +182,7 @@ function computePoint() {
     if (state.T) {
       minT3 = Infinity;
       for (const x of vT) minT3 = Math.min(minT3, x);
-      for (const s of sing) minT3 = Math.min(minT3, phi(k, s, M, mu, L, T_MAP, ph_));
+      for (const s of sing) minT3 = Math.min(minT3, phiT(k, s));
     }
     out.curves.push({ k, q, v, vT, sing, minT0, qmin, minT3 });
   }
@@ -189,9 +197,8 @@ function renderPoint() {
   const rows = [
     ['Фаза', `<span class="phase-badge">${P.ph}</span> &nbsp; M* = ${fmt(P.M, 6)}`],
   ];
-  if (P.M === 0) {
-    rows.push(['', 'M* = 0: формула Φ (через уравнение щели) неприменима']);
-  } else {
+  if (P.M === 0) rows.push(['½G(0⁺)', `${fmt(P.hG, 5)} — значение Φ при q₁ → 0, k = 0 (M* = 0: Φ = ½G(0⁺) + петля при M → 0)`]);
+  {
     rows.push(['Заполненные каналы', P.ch.length ? P.ch.filter((c) => c.n >= 0).map((c) =>
       `n = ${c.n === 0 ? '0' : '±' + c.n}: k<sub>F</sub> = ${fmt(c.P)}`).join('<br>') : 'нет (μ ≤ M*): Φ = Φ<sub>vac</sub> &gt; 0']);
     for (const c of P.curves) {
@@ -228,11 +235,7 @@ function renderPoint() {
     yaxis: { ...baseLayout(t).yaxis, title: { text: 'Φ(k, q₁)' }, range: [lo, 1.05 * hi] },
     legend: { orientation: 'h', y: 1.12, font: { size: 11 } }, margin: { l: 56, r: 12, t: 30, b: 44 },
   });
-  if (P.M === 0) {
-    Plotly.react('chart-phi', [], { ...layout, annotations: [{ text: 'M* = 0', showarrow: false, xref: 'paper', yref: 'paper', x: 0.5, y: 0.5 }] }, PLOT_CONFIG);
-  } else {
-    Plotly.react('chart-phi', traces, layout, PLOT_CONFIG);
-  }
+  Plotly.react('chart-phi', traces, layout, PLOT_CONFIG);
 }
 
 function downloadPoint() {
@@ -253,7 +256,7 @@ function setPoint(mu, L) {
   syncInputs(); writeHash();
   $('status').textContent = 'Считаю Φ(q₁)…';
   setTimeout(() => { const t0 = performance.now(); renderPoint(); drawMap();
-    $('status').textContent = `Точка μ = ${state.mu}, L = ${state.L}: ${(performance.now() - t0).toFixed(0)} мс`; }, 10);
+    $('status').textContent = `Точка μ = ${state.mu}, L = ${state.L}: ${(performance.now() - t0).toFixed(0)} мс` + mapNote(); }, 10);
 }
 
 async function main() {

@@ -41,7 +41,12 @@ def maps():
                 d = np.load(src)
                 phase = d['phase'].astype(str)
                 isI = np.char.startswith(phase, 'I')
-                out = dict(title=title, phi=phi, g=g, T=1e-3, q_max=10.0,
+                # phase T (M* = 0): Phi -> −∞ at T = 0 too as soon as a channel is filled (|n + φ|·2π/L < mu)
+                dphi = min(phi % 1.0, 1.0 - phi % 1.0)
+                isI |= (phase == 'T') & (d['mu'][:, None] > 2 * math.pi * dphi / d['L'][None, :])
+                isT = phase == 'T'
+                T_done = bool(np.isfinite(d['phi_min'][isT]).all())   # phase T filled (--fill-zero)
+                out = dict(title=title, phi=phi, g=g, T=1e-3, q_max=10.0, T_done=T_done,
                            mu=[round(float(x), 6) for x in d['mu']], L=[round(float(x), 6) for x in d['L']],
                            phase=[[p for p in row] for row in phase],
                            phi_min=r4(d['phi_min']), phi_min_k0=r4(d['phi_min_k0']),
@@ -66,6 +71,15 @@ def expected():
                 continue
             for k in (0, 1, 3):
                 for q1 in (0.05, 1.7, 4.0, 9.0):
+                    rows.append(dict(phi=ph_, mu=mu, L=L, M=M, k=k, q1=q1, vac=phi_vac(k, q1, M, L, ph_),
+                                     mat=phi_mat(k, q1, M, mu, L, ph_), T3=phi(k, q1, M, mu, L, 1e-3, ph_)))
+    # phase T: loop at the regulator mass (the JS adds ½ G(0⁺) itself)
+    from njl3.stab.formulas import M_ZERO
+    for ph_ in (0.0, 0.25):
+        for mu, L in ((3.6, 5.0), (6.0, 1.0)):
+            for k in (0, 2):
+                for q1 in (0.05, 1.7, 9.0):
+                    M = M_ZERO
                     rows.append(dict(phi=ph_, mu=mu, L=L, M=M, k=k, q1=q1, vac=phi_vac(k, q1, M, L, ph_),
                                      mat=phi_mat(k, q1, M, mu, L, ph_), T3=phi(k, q1, M, mu, L, 1e-3, ph_)))
     path = os.path.join(HERE, 'test', 'expected.json')
