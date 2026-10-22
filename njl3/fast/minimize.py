@@ -18,7 +18,8 @@ from njl3.hom import find_minimum as hom_find_minimum
 from njl3.hom import phase_label as hom_phase_label
 from njl3.inh import formulas as F
 
-M_REFINE = 1e-2          # below: the asymptotic well is used as is
+M_REFINE = 1e-2          # below: the asymptotic well is used as is (unless it is a rival of the best)
+M_RIVAL, RIVAL = 1e-3, 0.9   # asymptotic wells with M > M_RIVAL and Omega ≤ 0.9·best are refined
 LNM_MAX = math.log(6.0)
 _H = 1e-3                # finite-difference step in (ln M, t)
 
@@ -91,14 +92,14 @@ def refine(x0, S, mu, L, g, phi, lnm_lo, steps=12, t0=None):
     return x, t, fx
 
 
-_GM = np.geomspace(0.03, 4.0, 16)
+_GM = np.geomspace(0.02, 4.0, 40)          # dense scan in the strip near mu ~ pi (variant B of PLAN.md)
 GLOBAL_TRIGGER = 0.3      # global scouting if some channel well is large or the b = 0 solution is intermediate (0 < M < mu)
 
 
-def global_wells(mu, L, g, phi, thr, m_min, n_best=3):
+def global_wells(mu, L, g, phi, thr, m_min, n_best=5):
     """Coarse (M, b) scan in one vectorized call; the best grid-local minima, refined by Newton relative to the
     nearest threshold. Returns [(phase, M, lnM, b, omega)]."""
-    bg = np.linspace(0.0, mu + 0.5, 28)
+    bg = np.linspace(0.0, mu + 0.5, 60)
     Mg, Bg = np.meshgrid(_GM, bg, indexing='ij')
     Om = F.omega_rel_vec(Mg.ravel(), Bg.ravel(), mu, L, g, phi).reshape(Mg.shape)
     P = np.pad(Om, 1, constant_values=np.inf)
@@ -152,6 +153,20 @@ def find_minimum(mu, L, g, phi=0.0, T=0.0):
         chans.append(ch)
         if ch['M'] > 0 and ch['b'] > 1e-8:
             cand.append(dict(phase=f'B{j}', M=ch['M'], lnM=ch['lnM'], b=ch['b'], omega=ch['omega'], asym=ch['asym']))
+    # near-degenerate channels: asymptotic wells within RIVAL of the best are refined (the asymptotics alone may
+    # pick the wrong one of two channels whose Omega differ by ~1%)
+    best_om = min([q['omega'] for q in cand] + [0.0])
+    for ch in chans:
+        if ch['asym'] and ch['M'] > M_RIVAL and ch['omega'] <= RIVAL * best_om:
+            m_min = channel_m_min(ch['S'], mu, T)
+            lnm_lo = math.log(m_min) if m_min > 0 else math.log(1e-6)
+            x, t, om = refine(max(ch['lnM'], lnm_lo), ch['S'], mu, L, g, phi, lnm_lo)
+            M = math.exp(x)
+            if om < ch['omega'] and M > m_min:
+                ch.update(M=M, lnM=x, b=ch['S'] + t * M, omega=om, asym=False)
+                for q in cand:
+                    if q['phase'] == f"B{ch['n']}":
+                        q.update(M=M, lnM=x, b=ch['S'] + t * M, omega=om, asym=False)
     thr = [(ch['n'], ch['S'], 0) for ch in chans]
     big = any(ch['lnM'] > math.log(GLOBAL_TRIGGER) for ch in chans) or 0 < b0['M'] < mu
     if thr and big:

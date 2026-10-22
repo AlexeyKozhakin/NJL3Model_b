@@ -47,11 +47,15 @@ def main():
             wall = time.time() - t0
             ph_bad, dl, db, bad = 0, [], [], []
             ref_better = fast_better = 0
+            ref_list = []
             for (i, j), (ph, lnM, b, _, om) in zip(pts, res):
                 rph, rl, rb = d['phase'][i][j], d['lnM'][i][j], d['b'][i][j]
                 rom = d['omega'][i][j] or 0.0
-                tol = max(1e-10, 2e-5 * abs(rom))           # the maps store Omega with 6 digits
+                tol = max(1e-10, 1e-3 * abs(rom))           # 6 stored digits; asymptotic wells: |Δ ln M| ~ 1e-3
                 ref_better += rom < om - tol
+                if rom < om - tol:
+                    ref_list.append(dict(mu=d['mu'][j], L=d['L'][i], ref=[rph, rl, rb, rom, d['asym'][i][j]],
+                                         fast=[ph, lnM if math.isfinite(lnM) else None, b if math.isfinite(b) else None, om]))
                 fast_better += om < rom - tol
                 if ph != rph:
                     ph_bad += 1
@@ -66,7 +70,7 @@ def main():
                                 cpu_ms_per_point=round(1e3 * float(np.mean([r[3] for r in res])), 2),
                                 dlnM_max=float(max(dl, default=0)), dlnM_p99=float(np.percentile(dl, 99)) if dl else 0,
                                 db_max=float(max(db, default=0)), db_p99=float(np.percentile(db, 99)) if db else 0,
-                                mismatches=bad[:40])
+                                mismatches=bad[:40], ref_deeper=ref_list[:40])
             r = report[name]
             print(f"{name}: {r['points']} pts, phase mismatch {ph_bad} ({100 * ph_bad / len(pts):.2f}%), "
                   f"Ω: reference deeper {r['ref_better']}, fast deeper {r['fast_better']}; "
