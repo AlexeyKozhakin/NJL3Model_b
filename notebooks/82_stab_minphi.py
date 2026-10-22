@@ -1,11 +1,12 @@
 """
 "Phase diagram" of the stability of the homogeneous solution: colour = min over q1 ∈ (0, 10] of the second
 variation Phi(k, q1) at T = 1e-3 (M* = M*(mu, L) from njl3.hom; twist φ, coupling g). Blue Phi > 0 — stable, red Phi < 0 —
-unstable against an inhomogeneous fluctuation. Phase T (M* = 0) is left blank (formula not applicable).
+unstable against an inhomogeneous fluctuation. Phase T (M* = 0): Phi = ½G(0⁺) + loop at a regulator mass
+(njl3.stab.formulas.scan_min_zero); --fill-zero computes only these points in an existing .npz.
 
 Left: min over q1 and all k ≥ 0; right: k = 0 only (modulation along x1 only).
 
-    python notebooks/82_stab_minphi.py [--phi PHI] [--g G] [--region MU0 MU1 L0 L1 NAME] [--n MU_N L_N]
+    python notebooks/82_stab_minphi.py [--phi PHI] [--g G] [--region MU0 MU1 L0 L1 NAME] [--n MU_N L_N] [--fill-zero]
 → output/82_stab_minphi_<NAME>.npz / .png (φ = 0, g = −1), otherwise 82_stab_minphi_<NAME>_phi<φ>_g<g>.*
 """
 import argparse
@@ -31,10 +32,32 @@ def point(args):
     mu, L, phi, g = args
     ph, M = phase_at(mu, L, g, phi)
     if M == 0.0:
-        return ph, M, np.nan, np.nan, -1
+        return (ph, M) + point_zero(args)
     b = scan_min(M, mu, L, T=T_MAP, phi=phi)
     b0 = scan_min(M, mu, L, T=T_MAP, k_max=0, phi=phi)
     return ph, M, b['phi_min'], b0['phi_min'], b['k']
+
+
+def point_zero(args):
+    warnings.simplefilter('ignore')
+    from njl3.stab.formulas import scan_min_zero
+    mu, L, phi, g = args
+    b = scan_min_zero(mu, L, g, T=T_MAP, phi=phi)
+    b0 = scan_min_zero(mu, L, g, T=T_MAP, k_max=0, phi=phi)
+    return b['phi_min'], b0['phi_min'], b['k']
+
+
+def fill_zero(path, phi, g):
+    d = dict(np.load(path))
+    ii = np.argwhere(d['phase'] == 'T')
+    t = time.time()
+    with Pool(os.cpu_count()) as pool:
+        rows = pool.map(point_zero, [(d['mu'][i], d['L'][j], phi, g) for i, j in ii], chunksize=16)
+    for (i, j), (p, p0, k) in zip(ii, rows):
+        d['phi_min'][i, j], d['phi_min_k0'][i, j], d['k'][i, j] = p, p0, k
+    np.savez(path, **d)
+    print(f'{os.path.basename(path)}: {len(ii)} T points, {time.time() - t:.0f} s', flush=True)
+    return d
 
 
 def main():
@@ -44,8 +67,12 @@ def main():
     ap.add_argument('--plot-only', action='store_true', help='redraw from the saved .npz')
     ap.add_argument('--phi', type=float, default=0.0)
     ap.add_argument('--g', type=float, default=-1.0)
+    ap.add_argument('--fill-zero', action='store_true', help='compute the phase-T points of the saved .npz')
     a = ap.parse_args()
     tag = '' if (a.phi == 0.0 and a.g == -1.0) else f'_phi{a.phi:g}_g{a.g:g}'
+    if a.fill_zero:
+        d = fill_zero(os.path.join(OUT, f'82_stab_minphi_{a.region[4]}{tag}.npz'), a.phi, a.g)
+        return plot(d['mu'], d['L'], d['phase'], d['phi_min'], d['phi_min_k0'], a.region[4] + tag)
     if a.plot_only:
         d = np.load(os.path.join(OUT, f'82_stab_minphi_{a.region[4]}{tag}.npz'))
         return plot(d['mu'], d['L'], d['phase'], d['phi_min'], d['phi_min_k0'], a.region[4] + tag)
@@ -83,7 +110,7 @@ def plot(mus, Ls, phase, pmin, pmin0, name):
         ax.set_xlabel('$L$'); ax.set_ylabel('$\\mu$')
         ax.set_title(f'минимум $\\Phi$ по $q_1\\in(0,10]$ {ttl}, $T=10^{{-3}}$', fontsize=10)
         fig.colorbar(im, ax=ax, label='$\\min\\Phi$  (< 0 — неустойчиво)', extend='max' if np.nanmax(pmin) > hi else 'neither')
-    fig.suptitle('Устойчивость однородного решения модели ГН (серое — фаза $M^*=0$, не рассматривается)',
+    fig.suptitle('Устойчивость однородного решения модели ГН (фаза $T$: $M^*=0$)',
                  fontsize=11)
     fig.tight_layout()
     fig.savefig(os.path.join(OUT, f'82_stab_minphi_{name}.png'), dpi=150)

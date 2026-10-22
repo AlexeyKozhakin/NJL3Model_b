@@ -50,6 +50,7 @@ and in the matter part χ(mu - E) -> w(E) = n_F(E - mu) + n_F(E + mu):
 The singularity at 2 P_n is cut off at ~ ln(mu/T).
 """
 
+import functools
 import math
 
 from scipy.integrate import quad
@@ -336,6 +337,16 @@ def phi_vec(k, q1, M, mu, L, phi=0.0):
 N_DIPS = 3        # finite-T evaluations at the deepest singular dips only
 
 
+@functools.lru_cache(maxsize=16384)
+def _vac_grid(k, M, L, phi, q_max, n_q):
+    """Phi_vac on the scan grid. It does not depend on mu: in phase T (M = M_ZERO for every point) a map column
+    L = const reuses it for all mu (the expensive part there — the graded Feynman-x grid)."""
+    q = np.linspace(q_max / n_q, q_max, n_q)
+    v = phi_vac_vec(k, q, M, L, phi=phi)
+    v.flags.writeable = False
+    return v
+
+
 def scan_min(M, mu, L, T=1e-3, q_max=10.0, n_q=400, k_max=None, phi=0.0):
     """
     min over k ≥ 0 and q1 ∈ (0, q_max] of Phi at temperature T. The T = 0 closed form on a q-grid is
@@ -347,7 +358,8 @@ def scan_min(M, mu, L, T=1e-3, q_max=10.0, n_q=400, k_max=None, phi=0.0):
     best = dict(phi_min=math.inf, k=None, q1=None, singular=False)
     dips = []
     for k in range(0, k_max + 1):
-        v = phi_vec(k, q, M, mu, L, phi)
+        vac = _vac_grid(k, float(M), float(L), float(phi), float(q_max), int(n_q))
+        v = vac + phi_mat_vec(k, q, M, mu, L, phi)
         qs = [x for x in singular_q1(M, mu, L, k, phi) if 0.0 < x <= q_max]
         if qs:   # drop grid points within the thermal width of a singularity
             near = np.min(np.abs(q[:, None] - np.array(qs)[None, :]), axis=1) < 50.0 * T
@@ -357,7 +369,8 @@ def scan_min(M, mu, L, T=1e-3, q_max=10.0, n_q=400, k_max=None, phi=0.0):
             best = dict(phi_min=float(v[i]), k=k, q1=float(q[i]), singular=False)
         if T > 0.0:
             for x in qs:   # T = 0 value at a distance ~T from the singularity: ranks the dips (log cut-off)
-                pr = float(np.min(phi_vec(k, np.array([x - 3 * T, x + 3 * T]), M, mu, L, phi)))
+                xx = np.array([x - 3 * T, x + 3 * T])   # Phi_vac is smooth in q: interpolated on the grid
+                pr = float(np.min(np.interp(xx, q, vac) + phi_mat_vec(k, xx, M, mu, L, phi)))
                 dips.append((pr, k, x))
     if T > 0.0:
         for _, k, x in sorted(dips)[:N_DIPS]:
