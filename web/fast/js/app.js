@@ -267,6 +267,12 @@ function main() {
   $('point-form').addEventListener('submit', (e) => { e.preventDefault(); runPoint(Number($('pt-mu').value), Math.max(0.05, Number($('pt-L').value))); });
   $('land-scale').addEventListener('change', () => { state.scale = $('land-scale').value; writeHash(); drawLandscape(); });
   $('land-res').addEventListener('change', () => { state.lres = Number($('land-res').value); writeHash(); runPoint(state.mu, state.L); });
+  // Plotly adds .on() to a div only after the first plot: empty plots until the map is built
+  const t = tokens();
+  for (const id of ['map-M', 'map-b'])
+    Plotly.newPlot(id, [], baseLayout(t, { xaxis: { title: { text: 'L' } }, yaxis: { title: { text: 'μ' } },
+      annotations: [{ text: 'нажмите «Построить карту»', showarrow: false, xref: 'paper', yref: 'paper', x: 0.5, y: 0.5,
+                      font: { color: t.muted } }] }), CFG);
   for (const id of ['map-M', 'map-b']) $(id).on('plotly_click', (ev) => { const p = ev.points[0]; if (p && p.x != null) runPoint(+p.y.toFixed(5), +p.x.toFixed(4)); });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { drawMaps(); drawLandscape(); });
   runPoint(state.mu, state.L);
