@@ -68,11 +68,28 @@ def point(ij):
     return i, j, (r.phase, r.M_star, r.ln_M_star, r.b_star, r.omega_star, r.asymptotic)
 
 
+def column(ij_list):
+    return [point(ij) for ij in ij_list]
+
+
 def compute(pool, pts, res, t0, label):
-    # тяжёлые (большие L·mu — много порогов) первыми: равномерная загрузка процессов
-    jobs = sorted(pts, key=lambda q: -L[q[0]] * MU[q[1]])
-    for k, (i, j, out) in enumerate(pool.imap_unordered(point, jobs, chunksize=4)):
-        res[(i, j)] = out
+    if '--fastnb' in args:
+        # points of one L together (one process): the Omega_L grid of the dense scan is shared within a column
+        cols = {}
+        for i, j in pts:
+            cols.setdefault(i, []).append((i, j))
+        jobs = sorted(cols.values(), key=lambda c: -len(c) * L[c[0][0]])
+        for out in pool.imap_unordered(column, jobs):
+            for i, j, o in out:
+                res[(i, j)] = o
+        print(f"  {label}: {len(pts)} точек ({len(jobs)} столбцов по L), всего {len(res)}, {time.time() - t0:.0f} с",
+              flush=True)
+        return
+    else:
+        # тяжёлые (большие L·mu — много порогов) первыми: равномерная загрузка процессов
+        jobs = sorted(pts, key=lambda q: -L[q[0]] * MU[q[1]])
+        for k, (i, j, out) in enumerate(pool.imap_unordered(point, jobs, chunksize=4)):
+            res[(i, j)] = out
     print(f"  {label}: {len(jobs)} точек, всего {len(res)}, {time.time() - t0:.0f} с", flush=True)
 
 

@@ -30,10 +30,32 @@ def channels(ctx):
     return out
 
 
+BG_STEP = 0.06                       # fixed b step of the dense scan: the Omega_L grid is shared by all mu of one L
+_OL_CACHE = {}                       # (L, phi) -> Omega_L on _GM × b grid (per process)
+
+
+def _ol_grid(ctx, nb_needed):
+    key = (float(ctx.L), ctx.phi)
+    have = _OL_CACHE.get(key)
+    if have is None or have.shape[1] < nb_needed:
+        n = max(nb_needed, 0 if have is None else have.shape[1])
+        bg = np.arange(n) * BG_STEP
+        e, c, m, h, p0, xm, s0 = ctx.tab
+        start = 0 if have is None else have.shape[1]
+        new = nb.grid_OL_nb(_GM, bg[start:], ctx.L, e, c, m, h, p0, xm, s0, nb.TSX, nb.TSW, nb.GTX, nb.GTW, nb.CHX, nb.CHW)
+        have = new if have is None else np.concatenate([have, new], axis=1)
+        if len(_OL_CACHE) > 512:
+            _OL_CACHE.clear()
+        _OL_CACHE[key] = have
+    return have[:, :nb_needed]
+
+
 def global_wells(ctx, thr, m_min, n_best=5):
     mu = ctx.mu
-    bg = np.linspace(0.0, mu + 0.5, 60)
-    Om = nb.grid_nb(_GM, bg, *ctx.args)
+    nbg = int(math.ceil((mu + 0.5) / BG_STEP)) + 1
+    bg = np.arange(nbg) * BG_STEP
+    OL = _ol_grid(ctx, nbg)
+    Om = nb.grid_rest_nb(_GM, bg, OL, mu, ctx.L, ctx.g, ctx.z0, ctx.levk, ctx.levC, nb.TSX, nb.TSW)
     Mg, Bg = np.meshgrid(_GM, bg, indexing='ij')
     P = np.pad(Om, 1, constant_values=np.inf)
     loc = np.ones(Om.shape, dtype=bool)

@@ -288,3 +288,26 @@ def grid_nb(Mg, bg, mu, L, g, z0, levk, levC, edges, coef, mid, half, phi0, x_mi
             out[i, k] = omega_nb(Mg[i], bg[k], mu, L, g, z0, levk, levC, edges, coef, mid, half, phi0, x_min, s0,
                                  TSX, TSW, GTX, GTW, CHX, CHW)
     return out
+
+
+@njit(cache=True)
+def grid_OL_nb(Mg, bg, L, edges, coef, mid, half, phi0, x_min, s0, TSX, TSW, GTX, GTW, CHX, CHW):
+    """Omega_L(M, b) on a grid (independent of mu: shared by all points of one L)."""
+    out = np.empty((Mg.shape[0], bg.shape[0]))
+    for i in range(Mg.shape[0]):
+        for k in range(bg.shape[0]):
+            out[i, k] = omega_L_nb(Mg[i], bg[k], L, edges, coef, mid, half, phi0, x_min, s0, TSX, TSW, GTX, GTW, CHX, CHW)
+    return out
+
+
+@njit(cache=True)
+def grid_rest_nb(Mg, bg, OL, mu, L, g, z0, levk, levC, TSX, TSW):
+    """Omega(M, b) - Omega(0, 0) on a grid from a precomputed Omega_L grid (only the mu-dependent parts here)."""
+    out = np.empty((Mg.shape[0], bg.shape[0]))
+    for i in range(Mg.shape[0]):
+        M = Mg[i]
+        for k in range(bg.shape[0]):
+            b = bg[k]
+            out[i, k] = (M * M / (2 * g) + dU_nb(M, b) + OL[i, k]
+                         + omega_muL_nb(M, b, mu, L, levk, levC, TSX, TSW) - z0)
+    return out
