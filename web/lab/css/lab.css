@@ -27,3 +27,13 @@
 .channels th { color: var(--text-secondary); font-weight: 500; }
 .channels tr.win td { font-weight: 700; }
 .seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+/* Сравнение точек (однородный случай) */
+.cmp-card { margin-top: 16px; }
+.cmp-controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.cmp-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.cmp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 8px; border: 1px solid var(--border);
+            border-radius: 14px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cmp-chip i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.cmp-chip button { border: none; background: transparent; padding: 0 4px; font-size: 14px; cursor: pointer; color: var(--text-muted); }
+.chart-cmp { height: 360px; }

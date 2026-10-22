@@ -32,7 +32,7 @@ const PLOT_CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemo
 // Состояние, ссылка, вкладки
 // ---------------------------------------------------------------------------
 const state = { tab: 'hom', phi: 0, g: -1, muLo: 0.05, muHi: 7, LLo: 0.1, LHi: 10, res: 160, vmax: 4,
-                lines: true, thr: false, ptMu: 3.15, ptL: 3.5, theme: 'auto' };
+                lines: true, thr: false, ptMu: 3.15, ptL: 3.5, theme: 'auto', cmp: '', cmpNorm: false };
 
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
@@ -128,13 +128,86 @@ function heatmapTrace(t) {
     hovertemplate: 'L = %{x:.4f}<br>μ = %{y:.4f}<br>M* = %{z:.6f}<br>фаза %{customdata}<extra></extra>',
   };
 }
+// ---------------------------------------------------------------------------
+// Сравнение точек: каждая точка помнит свои φ, g
+// ---------------------------------------------------------------------------
+const CMP_COLORS = ['#2a78d6', '#eb6834', '#1baa6e', '#8f5bd6', '#c9a227', '#d6457a', '#3aa6b9', '#7a6a58'];
+const CMP_MAX = CMP_COLORS.length;
+function cmpList() {
+  return state.cmp ? state.cmp.split(';').filter(Boolean).map((q) => {
+    const [mu, L, phi, g] = q.split(':').map(Number);
+    return { mu, L, phi, g };
+  }) : [];
+}
+function cmpSave(list) { state.cmp = list.map((q) => [q.mu, q.L, q.phi, q.g].join(':')).join(';'); writeHash(); }
+const cmpLabel = (q) => `μ = ${q.mu}, L = ${q.L}, φ = ${q.phi}, g = ${q.g > 0 ? '+1' : '−1'}`;
+
+function cmpAdd(mu, L) {
+  const list = cmpList();
+  const q = { mu: +(+mu).toFixed(4), L: +(+L).toFixed(4), phi: +reducePhi(state.phi).toFixed(6), g: state.g };
+  if (list.some((x) => x.mu === q.mu && x.L === q.L && x.phi === q.phi && x.g === q.g)) return;
+  if (list.length >= CMP_MAX) { $('status').textContent = `В сравнении уже ${CMP_MAX} точек — удалите лишние.`; return; }
+  list.push(q); cmpSave(list); drawCompare(); drawDiagram();
+}
+function cmpRemove(k) { const list = cmpList(); list.splice(k, 1); cmpSave(list); drawCompare(); drawDiagram(); }
+
+function cmpTrace() {
+  const list = cmpList();
+  if (!list.length) return [];
+  return [{ type: 'scatter', mode: 'markers', name: 'сравнение', x: list.map((q) => q.L), y: list.map((q) => q.mu),
+            text: list.map(cmpLabel), hovertemplate: '%{text}<extra>сравнение</extra>', showlegend: false,
+            marker: { size: 11, color: list.map((_, k) => CMP_COLORS[k]), line: { color: '#ffffff', width: 1.5 } } }];
+}
+
+function drawCompare() {
+  const t = tokens(), list = cmpList();
+  $('cmp-norm').checked = state.cmpNorm;
+  $('cmp-list').innerHTML = list.length ? list.map((q, k) =>
+    `<span class="cmp-chip"><i style="background:${CMP_COLORS[k]}"></i>${cmpLabel(q)}<button data-cmp-del="${k}" title="убрать">×</button></span>`).join('')
+    : '<span class="muted">точек нет</span>';
+  document.querySelectorAll('[data-cmp-del]').forEach((b) => b.addEventListener('click', () => cmpRemove(Number(b.dataset.cmpDel))));
+  if (!list.length) { Plotly.purge('cmp-omega'); Plotly.purge('cmp-gap'); return; }
+  const res = list.map((q) => ({ q, r: analyzePoint(q.mu, q.L, q.g, q.phi), Mv: vacuumMass(q.L, q.g, q.phi) }));
+  let Mmax = 0.5;
+  for (const { q, r, Mv } of res) Mmax = Math.max(Mmax, 1.15 * Math.max(...r.roots.map((x) => x.M), q.mu, Math.min(Mv, 3 * q.mu + 3)));
+  const xs = linspace(Mmax * 1e-4, Mmax, 500);
+  const om = [], gap = [], ga = [];
+  res.forEach(({ q, r }, k) => {
+    const col = CMP_COLORS[k], name = cmpLabel(q);
+    let y = xs.map((M) => omegaRel(M, q.mu, q.L, q.g, q.phi));
+    let scale = 1;
+    if (state.cmpNorm) scale = r.M_star > 0 && r.omega_star < 0 ? Math.abs(r.omega_star) : Math.max(...y.map(Math.abs), 1e-300);
+    y = y.map((v) => v / scale);
+    const mins = r.local_minima;
+    om.push({ type: 'scatter', mode: 'lines', x: xs, y, name, line: { color: col, width: 2 },
+              hovertemplate: `${name}<br>M = %{x:.5f}<br>${state.cmpNorm ? 'ΔΩ/|Ω*|' : 'ΔΩ'} = %{y:.5e}<extra></extra>` });
+    om.push({ type: 'scatter', mode: 'markers', x: mins.map((m) => m.M), y: mins.map((m) => m.omega / scale), showlegend: false,
+              hoverinfo: 'skip', marker: { size: 8, color: mins.map((m) => (m.M === r.M_star ? col : t.surface)), line: { color: col, width: 2 } } });
+    if (r.M_star === 0) om.push({ type: 'scatter', mode: 'markers', x: [0], y: [0], showlegend: false, hoverinfo: 'skip',
+                                  marker: { size: 9, color: col, line: { color: col, width: 2 } } });
+    const gv = xs.map((M) => gapG(M, q.mu, q.L, q.g, q.phi));
+    ga.push(...gv.filter(Number.isFinite));
+    gap.push({ type: 'scatter', mode: 'lines', x: xs, y: gv, name, line: { color: col, width: 2 },
+               hovertemplate: `${name}<br>M = %{x:.5f}<br>G = %{y:.5f}<extra></extra>` });
+    gap.push({ type: 'scatter', mode: 'markers', x: r.roots.map((x) => x.M), y: r.roots.map(() => 0), showlegend: false, hoverinfo: 'skip',
+               marker: { size: 8, color: r.roots.map((x) => (x.M === r.M_star ? col : t.surface)), line: { color: col, width: 2 } } });
+  });
+  ga.sort((a, b) => a - b);
+  const lo = ga[Math.floor(0.02 * ga.length)], hi = ga[Math.floor(0.98 * ga.length)], pad = 0.15 * (hi - lo || 1);
+  const lay = (yt, extra = {}) => baseLayout(t, { xaxis: { ...baseLayout(t).xaxis, title: { text: 'M' }, range: [0, Mmax] },
+    yaxis: { ...baseLayout(t).yaxis, title: { text: yt }, zeroline: true, zerolinewidth: 1.5, ...extra },
+    legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { size: 11, color: t.ink2 } }, margin: { l: 64, r: 10, t: 8, b: 40 } });
+  Plotly.react('cmp-omega', om, lay(state.cmpNorm ? '(Ω(M) − Ω(0)) / |Ω*|' : 'Ω(M) − Ω(0)', state.cmpNorm ? { range: [-1.15, 1.5] } : {}), PLOT_CONFIG);
+  Plotly.react('cmp-gap', gap, lay('G(M)', { range: [Math.min(lo, 0) - pad, Math.max(hi, 0) + pad] }), PLOT_CONFIG);
+}
+
 function selectedTrace(t) {
   return { type: 'scatter', mode: 'markers', name: 'выбранная точка', x: [state.ptL], y: [state.ptMu], showlegend: false,
            marker: { symbol: 'circle-open', size: 14, color: t.ink, line: { width: 2.5, color: t.ink } }, hoverinfo: 'skip' };
 }
 function drawDiagram() {
   const t = tokens();
-  const traces = [heatmapTrace(t), ...thresholdTrace(t), ...boundaryTrace(t), selectedTrace(t)];
+  const traces = [heatmapTrace(t), ...thresholdTrace(t), ...boundaryTrace(t), ...cmpTrace(), selectedTrace(t)];   // selected — last
   const { phi, g } = P();
   Plotly.react('diagram', traces, baseLayout(t, {
     xaxis: { ...baseLayout(t).xaxis, title: { text: 'L' }, range: [state.LLo, state.LHi] },
@@ -357,7 +430,15 @@ function main() {
   for (const id of ['show-lines', 'show-thr']) $(id).addEventListener('change', () => { readInputs(); writeHash(); drawDiagram(); });
   $('vmax').addEventListener('change', () => { readInputs(); writeHash(); Plotly.restyle('diagram', { zmax: [state.vmax] }, [0]); });
   $('point-form').addEventListener('submit', (e) => { e.preventDefault(); showPoint(Number($('pt-mu').value), Math.max(0.01, Number($('pt-L').value))); });
-  $('diagram').on('plotly_click', (ev) => { const p = ev.points[0]; if (p && p.x != null && p.y != null) showPoint(p.y, p.x); });
+  $('diagram').on('plotly_click', (ev) => {
+    const p = ev.points[0];
+    if (!(p && p.x != null && p.y != null)) return;
+    if (ev.event && ev.event.shiftKey) cmpAdd(p.y, p.x); else showPoint(p.y, p.x);
+  });
+  $('cmp-add').addEventListener('click', () => cmpAdd(Number($('pt-mu').value), Math.max(0.01, Number($('pt-L').value))));
+  $('cmp-clear').addEventListener('click', () => { cmpSave([]); drawCompare(); drawDiagram(); });
+  $('cmp-norm').addEventListener('change', () => { state.cmpNorm = $('cmp-norm').checked; writeHash(); drawCompare(); });
+  drawCompare();
   $('dl-csv').addEventListener('click', exportCSV);
   $('dl-point').addEventListener('click', () => lastPoint && download(`njl3_hom_point_mu${state.ptMu}_L${state.ptL}_phi${P().phi}_g${P().g}.json`, JSON.stringify(lastPoint, null, 1), 'application/json'));
   $('copy-link').addEventListener('click', async () => {
@@ -365,7 +446,7 @@ function main() {
     try { await navigator.clipboard.writeText(location.href); $('status').textContent = 'Ссылка скопирована.'; }
     catch { $('status').textContent = location.href; }
   });
-  const redraw = () => { drawDiagram(); if (lastPoint) { drawPointCharts(lastPoint, lastPoint.M_vac); drawSlices(); } };
+  const redraw = () => { drawDiagram(); drawCompare(); if (lastPoint) { drawPointCharts(lastPoint, lastPoint.M_vac); drawSlices(); } };
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
   $('theme').addEventListener('change', () => { state.theme = $('theme').value; writeHash(); applyTheme(); redraw();
     import('./inh.js').then((m) => m.redrawInh()); });

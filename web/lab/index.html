@@ -109,6 +109,7 @@
           <label>μ <input id="pt-mu" type="number" step="0.001" value="3.15"></label>
           <label>L <input id="pt-L" type="number" step="0.001" value="3.5" min="0.01"></label>
           <button type="submit">Показать</button>
+          <button type="button" id="cmp-add" title="Добавить точку (μ, L) с текущими φ и g в сравнение">+ в сравнение</button>
         </form>
         <table id="point-table" class="point-table"></table>
         <h3>Ω(M) − Ω(0)</h3>
@@ -118,6 +119,23 @@
         <button id="dl-point">Скачать точку (JSON)</button>
       </aside>
     </main>
+
+    <section class="card cmp-card" aria-live="polite">
+      <h2>Сравнение точек</h2>
+      <div class="cmp-controls">
+        <div id="cmp-list" class="cmp-list"></div>
+        <label class="inline"><input id="cmp-norm" type="checkbox"> нормировать Ω на |Ω(M*)|</label>
+        <button id="cmp-clear" type="button">Очистить</button>
+      </div>
+      <p class="note">Добавить точку: кнопка «+ в сравнение» в панели «Точка» или щелчок по карте с зажатым <b>Shift</b>.
+        Каждая точка запоминает свои φ и g — можно сравнивать и разные (μ, L), и разные φ, g. До 8 точек.</p>
+      <div class="slices">
+        <div><h3>Ω(M) − Ω(0)</h3><div id="cmp-omega" class="chart chart-cmp"></div></div>
+        <div><h3>G(M) = Ω′(M)/M</h3><div id="cmp-gap" class="chart chart-cmp"></div></div>
+      </div>
+      <p class="note">Кружки — локальные минимумы Ω, закрашенный кружок — глобальный минимум M* (у G — корни уравнения щели).
+        При нормировке кривая делится на |Ω(M*)| (если M* = 0 — на max |Ω| на отрезке), так что глубина ямы = −1.</p>
+    </section>
 
     <section class="card slices-card" aria-live="polite">
       <h2>Срезы через точку</h2>
