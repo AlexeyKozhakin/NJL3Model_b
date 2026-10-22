@@ -37,3 +37,4 @@
 .cmp-chip i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .cmp-chip button { border: none; background: transparent; padding: 0 4px; font-size: 14px; cursor: pointer; color: var(--text-muted); }
 .chart-cmp { height: 360px; }
+.cmp-feedback { margin: -2px 0 8px; font-size: 13px; color: var(--text-secondary); min-height: 1.2em; }

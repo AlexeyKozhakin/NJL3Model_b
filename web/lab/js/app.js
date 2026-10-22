@@ -145,11 +145,18 @@ const cmpLabel = (q) => `μ = ${q.mu}, L = ${q.L}, φ = ${q.phi}, g = ${q.g > 0 
 function cmpAdd(mu, L) {
   const list = cmpList();
   const q = { mu: +(+mu).toFixed(4), L: +(+L).toFixed(4), phi: +reducePhi(state.phi).toFixed(6), g: state.g };
-  if (list.some((x) => x.mu === q.mu && x.L === q.L && x.phi === q.phi && x.g === q.g)) return;
-  if (list.length >= CMP_MAX) { $('status').textContent = `В сравнении уже ${CMP_MAX} точек — удалите лишние.`; return; }
+  if (list.some((x) => x.mu === q.mu && x.L === q.L && x.phi === q.phi && x.g === q.g)) { cmpFeedback('эта точка уже в сравнении'); return; }
+  if (list.length >= CMP_MAX) { cmpFeedback(`в сравнении уже ${CMP_MAX} точек — удалите лишние`); return; }
   list.push(q); cmpSave(list); drawCompare(); drawDiagram();
+  cmpFeedback(`✓ добавлена ${cmpLabel(q)}`);
 }
-function cmpRemove(k) { const list = cmpList(); list.splice(k, 1); cmpSave(list); drawCompare(); drawDiagram(); }
+function cmpFeedback(msg) {
+  const n = cmpList().length;
+  $('cmp-msg').textContent = msg ? `${msg}; в сравнении ${n} ${n === 1 ? 'точка' : n < 5 ? 'точки' : 'точек'}.` : '';
+  $('cmp-goto').hidden = n === 0;
+  $('cmp-add').textContent = n ? `+ в сравнение (${n})` : '+ в сравнение';
+}
+function cmpRemove(k) { const list = cmpList(); list.splice(k, 1); cmpSave(list); drawCompare(); drawDiagram(); cmpFeedback(''); }
 
 function cmpTrace() {
   const list = cmpList();
@@ -436,7 +443,9 @@ function main() {
     if (ev.event && ev.event.shiftKey) cmpAdd(p.y, p.x); else showPoint(p.y, p.x);
   });
   $('cmp-add').addEventListener('click', () => cmpAdd(Number($('pt-mu').value), Math.max(0.01, Number($('pt-L').value))));
-  $('cmp-clear').addEventListener('click', () => { cmpSave([]); drawCompare(); drawDiagram(); });
+  $('cmp-clear').addEventListener('click', () => { cmpSave([]); drawCompare(); drawDiagram(); cmpFeedback(''); });
+  $('cmp-goto').addEventListener('click', (e) => { e.preventDefault(); $('cmp-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  cmpFeedback('');
   $('cmp-norm').addEventListener('change', () => { state.cmpNorm = $('cmp-norm').checked; writeHash(); drawCompare(); });
   drawCompare();
   $('dl-csv').addEventListener('click', exportCSV);

@@ -111,6 +111,7 @@
           <button type="submit">Показать</button>
           <button type="button" id="cmp-add" title="Добавить точку (μ, L) с текущими φ и g в сравнение">+ в сравнение</button>
         </form>
+        <p class="cmp-feedback"><span id="cmp-msg"></span> <a href="#" id="cmp-goto" hidden>к сравнению ↓</a></p>
         <table id="point-table" class="point-table"></table>
         <h3>Ω(M) − Ω(0)</h3>
         <div id="chart-omega" class="chart chart-small"></div>
@@ -120,7 +121,7 @@
       </aside>
     </main>
 
-    <section class="card cmp-card" aria-live="polite">
+    <section id="cmp-section" class="card cmp-card" aria-live="polite">
       <h2>Сравнение точек</h2>
       <div class="cmp-controls">
         <div id="cmp-list" class="cmp-list"></div>
