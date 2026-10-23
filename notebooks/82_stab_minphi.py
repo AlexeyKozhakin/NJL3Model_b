@@ -49,7 +49,7 @@ def point_zero(args):
 
 def fill_zero(path, phi, g):
     d = dict(np.load(path))
-    ii = np.argwhere(d['phase'] == 'T')
+    ii = np.argwhere((d['phase'] == 'T') & ~np.isfinite(d['phi_min']))    # only the points not yet done
     t = time.time()
     with Pool(os.cpu_count()) as pool:
         rows = pool.map(point_zero, [(d['mu'][i], d['L'][j], phi, g) for i, j in ii], chunksize=16)

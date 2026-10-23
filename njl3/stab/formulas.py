@@ -149,7 +149,9 @@ def _pv_line(f, a, b, p0, pts):
         return quad(lambda p: f(p) / (p - p0), a, b, points=br or None, limit=400,
                     epsabs=1e-14, epsrel=1e-11)[0]
     f0 = f(p0)
-    br = [p for p in pts + [p0] if a < p < b]
+    # break points closer than 1e-9 to the pole are dropped (nearly coincident points break QUADPACK;
+    # the integrand (f - f0)/(p - p0) is smooth there on the scale T)
+    br = [p for p in pts if a < p < b and abs(p - p0) > 1e-9] + [p0]
     g = lambda p: (f(p) - f0) / (p - p0) if p != p0 else 0.0
     return (quad(g, a, b, points=br, limit=400, epsabs=1e-14, epsrel=1e-11)[0]
             + f0 * math.log((b - p0) / (p0 - a)))
@@ -172,6 +174,8 @@ def phi_mat_T(k, q1, M, mu, L, T, phi=0.0):
             continue
         pm = math.sqrt(E_max * E_max - m * m)
         pts = [-math.sqrt(mu * mu - m * m), math.sqrt(mu * mu - m * m)] if m < mu else []
+        if m < 1e-2:
+            pts.append(0.0)    # light mode (phase T, M = M_ZERO): peak of 1/E of width m at p = 0
 
         def f(p, m=m):
             E = math.sqrt(m * m + p * p)

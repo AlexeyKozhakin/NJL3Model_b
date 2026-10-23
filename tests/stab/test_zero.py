@@ -50,3 +50,16 @@ def test_scan_min_zero_finite():
     warnings.simplefilter('ignore')
     r = S.scan_min_zero(4.0, 5.0, -1.0, T=1e-3)
     assert r['phi_min'] < S.half_G0(4.0, 5.0, -1.0) + 1e-12
+
+
+@pytest.mark.parametrize('M,mu,L', [(1e-4, 2.145, 0.5969849246231156), (1e-4, 2.46, 0.5969849246231156),
+                                    (0.4, 3.3, 2.0), (1e-4, 3.6, 5.0)])
+def test_finite_T_at_the_singular_point_is_continuous(M, mu, L):
+    """At q1 = q_s the pole p0 = -q1/2 meets the Fermi point -P (to ~1e-13): QUADPACK must not break there,
+    and the 1/E peak of a light mode at p = 0 must be resolved."""
+    warnings.simplefilter('ignore')
+    for k in (0, 1):
+        for x in [x for x in S.singular_q1(M, mu, L, k) if x > 1e-6]:
+            a = S.phi_mat_T(k, x, M, mu, L, 1e-3)
+            for d in (1e-12, -1e-12, 1e-9):
+                assert a == pytest.approx(S.phi_mat_T(k, x + d, M, mu, L, 1e-3), abs=1e-6)
