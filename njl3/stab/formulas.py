@@ -362,7 +362,10 @@ def scan_min(M, mu, L, T=1e-3, q_max=10.0, n_q=400, k_max=None, phi=0.0):
     best = dict(phi_min=math.inf, k=None, q1=None, singular=False)
     dips = []
     for k in range(0, k_max + 1):
-        vac = _vac_grid(k, float(M), float(L), float(phi), float(q_max), int(n_q))
+        if M < 1e-2:   # phase T: M = M_ZERO at every point, reuse per column (else M differs: no cache)
+            vac = _vac_grid(k, float(M), float(L), float(phi), float(q_max), int(n_q))
+        else:
+            vac = phi_vac_vec(k, q, M, L, phi=phi)
         v = vac + phi_mat_vec(k, q, M, mu, L, phi)
         qs = [x for x in singular_q1(M, mu, L, k, phi) if 0.0 < x <= q_max]
         if qs:   # drop grid points within the thermal width of a singularity
