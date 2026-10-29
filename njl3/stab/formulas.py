@@ -457,3 +457,46 @@ def phi_zero_direct(q1, k, mu, L, g, m, matter_factor=0.5):
                 mat += quad(f, x0, x1, limit=400, epsabs=1e-13, epsrel=1e-11)[0]
     mat *= 2.0 / L / (2.0 * PI)
     return 1.0 / (2.0 * g) + vac + cas + matter_factor * mat
+
+
+# ==============================================================================
+# Curvature at q1 = 0 (k = 0): Phi''(0) in closed form
+# ==============================================================================
+#
+# Phi(0, q1) = N(q) R(q), N = 2M² + q²/2, R even  =>  Phi''(0) = R(0) + 2M² R''(0)   (Phi'(0) = 0 identically).
+#   vacuum:  R_vac = I(q)/(4π),  I(0) = K(M),  I''(0) = K'(M)/(6M),  K(a) = sinh(La)/(a(cosh La - cos2πφ));
+#   matter:  R_mat = -(1/(πL)) Σ_n S_n(q),  S_n(q) = PV ∫_{-P}^{P} dp/(E(2qp + q²)) = S0 + s1 q² + O(q⁴),
+#            S0 = mu/(2 P m²),  s1 = (m² - 2P²) mu/(24 P³ m⁴)   (m = m_n, P = P_n; filled channels).
+# Phase T (M* = 0): Phi''(0) = lim_{M->0} R(0) (the M -> 0 and q -> 0 limits do not commute; this is the q >> M one).
+# φ = 0: the zero mode's 1/M² cancels between K and S0:  R(0) = L/(24π) - (1/(πL)) [1/(4mu²) + Σ_{n≠0} mu/(2 P_n k_n²)].
+# φ ≠ 0: K(0) = L/(1 - cos2πφ).
+
+def _K(a, L, c):
+    ex = math.exp(-min(L * a, 700.0))
+    return (1.0 - ex * ex) / (a * (1.0 + ex * ex - 2.0 * c * ex))
+
+
+def _dK(a, L, c):
+    ch = math.cosh(min(L * a, 700.0))
+    return L * (1.0 - c * ch) / (a * (ch - c) ** 2) - _K(a, L, c) / a
+
+
+def phi_dd0(M, mu, L, phi=0.0):
+    """Phi''(k = 0, q1 = 0) — second derivative of the second variation in q1 at zero (closed form)."""
+    c = math.cos(2.0 * PI * phi)
+    w = 2.0 * PI / L
+    if M == 0.0:
+        zero_mode = abs(phi - round(phi)) < 1e-12
+        vac = L / 24.0 / PI if zero_mode else L / (1.0 - c) / (4.0 * PI)
+        s = 1.0 / (4.0 * mu * mu) if (zero_mode and mu > 0) else 0.0
+        for n, m, P in channels(0.0, mu, L, phi):
+            if zero_mode and n == 0:
+                continue
+            s += mu / (2.0 * P * m * m)
+        return vac - s / (PI * L)
+    R0 = _K(M, L, c) / (4.0 * PI)
+    R2 = _dK(M, L, c) / (24.0 * PI * M)
+    for n, m, P in channels(M, mu, L, phi):
+        R0 -= mu / (2.0 * P * m * m) / (PI * L)
+        R2 -= 2.0 * (m * m - 2.0 * P * P) * mu / (24.0 * P ** 3 * m ** 4) / (PI * L)
+    return R0 + 2.0 * M * M * R2
