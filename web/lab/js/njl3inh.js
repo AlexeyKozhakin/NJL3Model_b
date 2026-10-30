@@ -212,7 +212,7 @@ export function channelAsymptotics(S, C, mu, L, g, phi) {
   return { c, A, lnM, M, omega: -0.5 * c * M * M };
 }
 
-function nelderMead(f, x0, step, { xatol, fatol, maxfev }) {
+export function nelderMead(f, x0, step, { xatol, fatol, maxfev }) {
   let simplex = [x0, [x0[0] + step, x0[1]], [x0[0], x0[1] + step]].map((x) => ({ x, f: f(x) }));
   let fev = 3;
   while (fev < maxfev) {
