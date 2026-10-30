@@ -70,9 +70,11 @@ function showTab(name) {
   $('tab-hom').hidden = name !== 'hom';
   $('tab-inh').hidden = name !== 'inh';
   $('tab-inhT').hidden = name !== 'inhT';
+  $('tab-muT').hidden = name !== 'muT';
   $('tab-stab').hidden = name !== 'stab';
   if (name === 'inh') import('./inh.js').then((m) => m.initInh());
   if (name === 'inhT') import('./inhT.js').then((m) => m.initInhT());
+  if (name === 'muT') import('./muT.js').then((m) => m.initMuT());
   if (name === 'stab' && !$('stab-frame').src) $('stab-frame').src = '../stab/';
   if (name === 'hom') window.dispatchEvent(new Event('resize'));
 }
@@ -460,7 +462,7 @@ function main() {
   const redraw = () => { drawDiagram(); drawCompare(); if (lastPoint) { drawPointCharts(lastPoint, lastPoint.M_vac); drawSlices(); } };
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw);
   $('theme').addEventListener('change', () => { state.theme = $('theme').value; writeHash(); applyTheme(); redraw();
-    import('./inh.js').then((m) => m.redrawInh()); import('./inhT.js').then((m) => m.redrawInhT()); });
+    import('./inh.js').then((m) => m.redrawInh()); import('./inhT.js').then((m) => m.redrawInhT()); import('./muT.js').then((m) => m.redrawMuT()); });
 }
 
 main();

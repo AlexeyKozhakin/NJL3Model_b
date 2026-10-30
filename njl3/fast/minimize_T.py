@@ -70,12 +70,15 @@ def _channel(ctx, S, M0, b0):
     return 0.0, b, 0.0
 
 
-def find_minimum(mu, L, g, phi=0.0, T=1e-3):
+def find_minimum(mu, L, g, phi=0.0, T=1e-3, extra=(), r0=None):
+    """extra: additional starts [(M, b)] — e.g. the minima at neighbouring points (continuation in T);
+    b = 0 — homogeneous start, b > 0 — channel start (its threshold is the nearest S_n). r0: the T = 0 result."""
     phi = F.check_phi(phi)
-    r0 = minimize_nb.find_minimum(mu, L, g, phi, T=0.0)
+    if r0 is None:
+        r0 = minimize_nb.find_minimum(mu, L, g, phi, T=0.0)
     ctx = CtxT(mu, L, g, phi, T)
     _, _, hom_minima = hom_find_minimum(mu, L, g, phi)
-    Mh, Oh = _hom(ctx, [M for M, _ in hom_minima])
+    Mh, Oh = _hom(ctx, [M for M, _ in hom_minima] + [M for M, b in extra if M > 0 and not b > 0])
     cand = [dict(phase=hom_phase_label(Mh, mu, L, phi), M=Mh, b=0.0, omega=Oh)]
     starts = []
     for ch in r0.channels:
@@ -87,6 +90,10 @@ def find_minimum(mu, L, g, phi=0.0, T=1e-3):
         S = min((ch['S'] for ch in r0.channels), key=lambda s: abs(s - r0.b_star))
         if not any(abs(s - S) < 1e-12 and abs(m - r0.M_star) < 1e-9 for s, m, _ in starts):
             starts.append((S, r0.M_star, r0.b_star))
+    for M, b in extra:
+        if M > 0 and b > 1e-8 and r0.channels:
+            S = min((ch['S'] for ch in r0.channels), key=lambda s_: abs(s_ - b))
+            starts.append((S, M, b))
     for S, M0, b0 in starts:
         M, b, o = _channel(ctx, S, M0, b0)
         if M > 0:

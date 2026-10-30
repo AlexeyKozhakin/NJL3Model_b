@@ -17,6 +17,7 @@
       <button role="tab" data-tab="hom" class="tab">Однородный случай (любые φ, g)</button>
       <button role="tab" data-tab="inh" class="tab">Неоднородный случай (M, b)</button>
       <button role="tab" data-tab="inhT" class="tab">Неоднородный, T &gt; 0</button>
+      <button role="tab" data-tab="muT" class="tab">Диаграмма (μ, T)</button>
       <button role="tab" data-tab="stab" class="tab">Устойчивость однородного решения (ГН)</button>
     </nav>
   </header>
@@ -377,6 +378,51 @@
   </section>
 
   <!-- ===================================================================== -->
+  <section id="tab-muT" class="tab-panel" role="tabpanel" hidden>
+    <p class="lead">
+      Фазовые диаграммы в плоскости (μ, T) при фиксированной длине окружности L: глобальный минимум
+      Ω<sub>T</sub>(M, b) по массе M и параметру киральной спирали b при температуре T (формула (A): вакуумные части при T = 0,
+      часть с ферми-морем — при T). Фазы: V и I<sub>j</sub> — однородное решение (b = 0; V — M* ≥ μ), B<sub>n</sub> — спираль у
+      порога уровня n (b* ≈ S<sub>n</sub>), T — M* = 0. Посчитано для φ = 0, g = −1; μ ∈ [0.05, 7], T ∈ [10⁻³, 5]
+      (логарифмическая сетка). Клик по карте — расчёт точки в браузере.
+    </p>
+    <section class="controls" aria-label="Параметры">
+      <span class="presets seg">
+        <span class="muted">L</span>
+        <button data-zl="0.1">0.1</button><button data-zl="0.3">0.3</button><button data-zl="0.5">0.5</button>
+        <button data-zl="1">1</button><button data-zl="3">3</button><button data-zl="5">5</button>
+      </span>
+      <span class="presets seg">
+        <span class="muted">шкала T</span>
+        <button data-zscale="log">логарифмическая</button><button data-zscale="lin">линейная</button>
+      </span>
+      <span class="toggles"><label><input id="z-show-bnd" type="checkbox" checked> границы фаз</label></span>
+    </section>
+    <p id="z-status" class="status" role="status"></p>
+    <section class="maps">
+      <div class="card"><h2>Фаза</h2><div id="z-map-phase" class="chart chart-map"></div></div>
+      <div class="card"><h2>M*</h2><div id="z-map-M" class="chart chart-map"></div></div>
+    </section>
+    <section class="maps">
+      <div class="card"><h2>b* (только в фазах спирали)</h2><div id="z-map-b" class="chart chart-map"></div></div>
+      <div class="card">
+        <h2>Точка</h2>
+        <form id="z-point-form" class="point-form">
+          <label>μ <input id="z-pt-mu" type="number" step="0.01" value="4.0"></label>
+          <label>T <input id="z-pt-T" type="number" step="0.001" value="0.01" min="0.0001"></label>
+          <button type="submit" class="primary">Рассчитать</button>
+        </form>
+        <table id="z-point-table" class="point-table"></table>
+        <p class="note">Точка считается при выбранном L (φ = 0, g = −1) тем же кодом, что и вкладка «Неоднородный, T &gt; 0».</p>
+      </div>
+    </section>
+    <div class="legend-phases">
+      <span><b>V</b>, <b>I<sub>j</sub></b> — однородное решение (b = 0)</span>
+      <span><b>B<sub>n</sub></b> — киральная спираль у порога уровня n</span>
+      <span><b>T</b> (серое) — M = 0</span>
+    </div>
+  </section>
+
   <section id="tab-stab" class="tab-panel" role="tabpanel" hidden>
     <p class="lead">Вторая вариация Φ(k, q₁) модели ГН вокруг однородного решения (пока φ = 0, g = −1). Отдельная страница:
       <a href="../stab/" target="_blank" rel="noopener">web/stab</a>.</p>
