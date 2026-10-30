@@ -18,6 +18,9 @@
 --region MU0 MU1 L0 L1 NAME: только эта область (подробная карта для приложения),
 выход notebooks/output/53_full_maps_<NAME>.json.
 
+--thermal: Omega at temperature T (formula (A), njl3.fast.minimize_T) instead of the T = 0 search with the survival
+threshold; output web/lab/data/inhT/maps_T<T>_phi<PHI>_g<G>_<NAME|full>.json.
+
 Запуск:  python notebooks/90_inh_maps.py --phi PHI --g G [--n N_MU N_L] [--T T] [--refine K] [--region MU0 MU1 L0 L1 NAME]
 → web/lab/data/inh/maps_phi<PHI>_g<G>_<NAME|full>.json (or --out FILE); --fast — the fast search njl3.fast
 """
@@ -36,7 +39,9 @@ import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-if '--fastnb' in sys.argv:
+if '--thermal' in sys.argv:
+    from njl3.fast.minimize_T import find_minimum        # Omega at temperature T > 0 (formula (A), njl3.fast.thermal)
+elif '--fastnb' in sys.argv:
     from njl3.fast.minimize_nb import find_minimum       # the same, compiled core (numba)
 elif '--fast' in sys.argv:
     from njl3.fast.minimize import find_minimum          # fast candidate-based search (njl3/fast/PLAN.md)
@@ -73,7 +78,7 @@ def column(ij_list):
 
 
 def compute(pool, pts, res, t0, label):
-    if '--fastnb' in args:
+    if '--fastnb' in args or '--thermal' in args:
         # points of one L together (one process): the Omega_L grid of the dense scan is shared within a column
         cols = {}
         for i, j in pts:
@@ -150,6 +155,10 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     if '--out' in args:
         out_json = args[args.index('--out') + 1]
+    elif '--thermal' in args:
+        out_dir = os.path.join(ROOT, 'web', 'lab', 'data', 'inhT')
+        os.makedirs(out_dir, exist_ok=True)
+        out_json = os.path.join(out_dir, f'maps_T{T:g}_phi{PHI:g}_g{G:g}_{name}.json')
     else:
         out_json = os.path.join(out_dir, f'maps_phi{PHI:g}_g{G:g}_{name}.json')
     r6 = lambda x: None if not np.isfinite(x) else float(f'{x:.6g}')
