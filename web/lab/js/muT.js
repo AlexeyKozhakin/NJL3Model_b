@@ -111,6 +111,52 @@ function draw() {
 }
 
 // ---------------------------------------------------------------------------
+// Срезы через точку (из данных карты)
+// ---------------------------------------------------------------------------
+const nearest = (arr, v, log) => arr.reduce((k, x, i) => (Math.abs(log ? Math.log(x / v) : x - v) < Math.abs(log ? Math.log(arr[k] / v) : arr[k] - v) ? i : k), 0);
+
+function phaseSegments(xs, ys, phases, name) {
+  // по одной линии на каждую фазу: разрывы там, где фаза другая (стык соединяется с соседней точкой)
+  const out = [];
+  for (const c of ['V', 'I', 'B', 'T']) {
+    const y = ys.map((v, k) => (cls(phases[k]) === c || (k > 0 && cls(phases[k - 1]) === c) ? v : null));
+    if (y.some((v, k) => v !== null && cls(phases[k]) === c))
+      out.push({ type: 'scatter', mode: 'lines', x: xs, y, name: c, line: { color: PHASE_COLORS[c], width: 2.2 }, connectgaps: false,
+                 hovertemplate: `${name} = %{x:.4g}<br>%{y:.5g}<extra>${c}</extra>` });
+  }
+  return out;
+}
+
+function drawSlices() {
+  if (!D) return;
+  const t = tokens();
+  const { mu, T, phase, lnM, b } = D;
+  const j = nearest(mu, state.mu, false), i = nearest(T, state.T, true);
+  const Mval = (v) => (v === null ? 0 : Math.exp(v));
+  // по T при mu = mu[j]
+  const phT = T.map((_, k) => phase[k][j]), MT = T.map((_, k) => Mval(lnM[k][j]));
+  const bT = T.map((_, k) => (phase[k][j][0] === 'B' ? b[k][j] : 0));
+  // по mu при T = T[i]
+  const phM = phase[i], Mmu = mu.map((_, k) => Mval(lnM[i][k]));
+  const bmu = mu.map((_, k) => (phase[i][k][0] === 'B' ? b[i][k] : 0));
+  const xT = { title: { text: 'T' }, type: state.logT ? 'log' : 'linear', exponentformat: 'power',
+               range: state.logT ? [Math.log10(T[0]), Math.log10(T.at(-1))] : [0, T.at(-1)] };
+  const xmu = { title: { text: 'μ' }, range: [mu[0], mu.at(-1)] };
+  const mark = (x) => [{ type: 'line', yref: 'paper', y0: 0, y1: 1, x0: x, x1: x, line: { color: t.muted, width: 1, dash: 'dot' } }];
+  const lay = (xa, yt, x0, ylog) => baseLayout(t, { xaxis: xa, showlegend: true, shapes: mark(x0),
+    yaxis: { title: { text: yt }, rangemode: 'tozero', ...(ylog ? { type: 'log', exponentformat: 'power' } : {}) },
+    legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { size: 10, color: t.ink2 } }, margin: { l: 56, r: 10, t: 8, b: 40 } });
+  $('sT-title').innerHTML = `M*(T) при μ = ${mu[j].toFixed(3)}`;
+  $('smu-title').innerHTML = `M*(μ) при T = ${T[i].toPrecision(3)}`;
+  $('sT-b-title').innerHTML = `b*(T) при μ = ${mu[j].toFixed(3)}`;
+  $('smu-b-title').innerHTML = `b*(μ) при T = ${T[i].toPrecision(3)}`;
+  Plotly.react($('sT-M'), phaseSegments(T, MT, phT, 'T'), lay(xT, 'M*', T[i]), CFG);
+  Plotly.react($('smu-M'), phaseSegments(mu, Mmu, phM, 'μ'), lay(xmu, 'M*', mu[j]), CFG);
+  Plotly.react($('sT-b'), phaseSegments(T, bT, phT, 'T'), lay(xT, 'b*', T[i]), CFG);
+  Plotly.react($('smu-b'), phaseSegments(mu, bmu, phM, 'μ'), lay(xmu, 'b*', mu[j]), CFG);
+}
+
+// ---------------------------------------------------------------------------
 // Точка: расчёт в фоновом потоке вкладки «Неоднородный, T > 0»
 // ---------------------------------------------------------------------------
 const worker = new Worker(new URL('./worker_inhT.js', import.meta.url), { type: 'module' });
@@ -121,7 +167,7 @@ worker.onmessage = ({ data }) => {
   const cb = pending.get(data.job); if (cb) cb(data);
 };
 function runPoint(mu, T) {
-  state.mu = mu; state.T = T; writeHash(); draw();
+  state.mu = mu; state.T = T; writeHash(); draw(); drawSlices();
   $('pt-mu').value = mu; $('pt-T').value = T;
   $('status').textContent = `Расчёт точки μ = ${mu}, T = ${T}, L = ${state.L}…`;
   const t0 = performance.now(), id = ++job;
@@ -168,7 +214,7 @@ export async function initMuT() {
     state.L = Number(b.dataset.zl); await reload(); runPoint(state.mu, state.T);
   }));
   document.querySelectorAll('[data-zscale]').forEach((b) => b.addEventListener('click', () => {
-    state.logT = b.dataset.zscale === 'log'; syncSeg(); writeHash(); draw();
+    state.logT = b.dataset.zscale === 'log'; syncSeg(); writeHash(); draw(); drawSlices();
   }));
   $('show-bnd').addEventListener('change', () => { state.bnd = $('show-bnd').checked; writeHash(); draw(); });
   for (const id of ['map-phase', 'map-M', 'map-b']) $(id).on('plotly_click', (ev) => {
@@ -179,7 +225,7 @@ export async function initMuT() {
     e.preventDefault();
     runPoint(Number($('pt-mu').value), Math.max(1e-4, Number($('pt-T').value)));
   });
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { draw(); drawSlices(); });
 }
-export function redrawMuT() { if (started) draw(); }
+export function redrawMuT() { if (started) { draw(); drawSlices(); } }
 export { LS };
