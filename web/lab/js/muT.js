@@ -127,33 +127,67 @@ function phaseSegments(xs, ys, phases, name) {
   return out;
 }
 
+// точные срезы — в двух отдельных фоновых потоках (по T и по μ), с выводом по мере расчёта
+const N_ST = 160, N_SMU = 140;
+const exact = { T: null, mu: null };
+let lineWorkers = { T: null, mu: null }, lineJob = 0;
+function startExact() {
+  for (const key of ['T', 'mu']) if (lineWorkers[key]) lineWorkers[key].terminate();
+  const id = ++lineJob, j = nearest(D.mu, state.mu, false), i = nearest(D.T, state.T, true);
+  const muFix = state.mu, TFix = state.T;
+  const Ts = Array.from({ length: N_ST }, (_, k) => Math.exp(Math.log(D.T[0]) + (Math.log(D.T.at(-1)) - Math.log(D.T[0])) * k / (N_ST - 1)));
+  const mus = Array.from({ length: N_SMU }, (_, k) => D.mu[0] + (D.mu.at(-1) - D.mu[0]) * k / (N_SMU - 1));
+  exact.T = { fix: muFix, x: Ts, ph: [], M: [], b: [], n: 0 };
+  exact.mu = { fix: TFix, x: mus, ph: [], M: [], b: [], n: 0 };
+  const run = (key, msg) => {
+    const w = new Worker(new URL('./worker_inhT.js', import.meta.url), { type: 'module' });
+    lineWorkers[key] = w;
+    w.onmessage = ({ data }) => {
+      if (id !== lineJob) return;
+      const e = exact[key];
+      if (data.type === 'error') { $('status').textContent = 'Ошибка расчёта среза: ' + data.message; return; }
+      if (data.done) { drawSlices(); return; }
+      e.ph[data.k] = data.phase; e.M[data.k] = data.M; e.b[data.k] = data.phase[0] === 'B' ? data.b : 0; e.n++;
+      if (e.n % 8 === 0) drawSlices();
+    };
+    w.postMessage({ type: 'line', job: id, L: state.L, g: -1, phi: 0, ...msg });
+  };
+  run('T', { mus: Ts.map(() => muFix), Ts });
+  run('mu', { mus, Ts: mus.map(() => TFix) });
+  void j; void i;
+}
+
+function phaseSegmentsExact(e, ys, name) {
+  const n = e.ph.length, xs = e.x.slice(0, n), ph = e.ph.slice(0, n);
+  return phaseSegments(xs, ys.slice(0, n), ph.map((p) => p || 'T'), name);
+}
+
 function drawSlices() {
   if (!D) return;
   const t = tokens();
   const { mu, T, phase, lnM, b } = D;
   const j = nearest(mu, state.mu, false), i = nearest(T, state.T, true);
   const Mval = (v) => (v === null ? 0 : Math.exp(v));
-  // по T при mu = mu[j]
-  const phT = T.map((_, k) => phase[k][j]), MT = T.map((_, k) => Mval(lnM[k][j]));
-  const bT = T.map((_, k) => (phase[k][j][0] === 'B' ? b[k][j] : 0));
-  // по mu при T = T[i]
-  const phM = phase[i], Mmu = mu.map((_, k) => Mval(lnM[i][k]));
-  const bmu = mu.map((_, k) => (phase[i][k][0] === 'B' ? b[i][k] : 0));
+  const grey = (x, y, name) => ({ type: 'scatter', mode: 'lines', x, y, name: 'карта', line: { color: t.muted, width: 1, dash: 'dot' },
+                                  hovertemplate: `${name} = %{x:.4g}<br>%{y:.5g}<extra>карта</extra>` });
+  const MT = T.map((_, k) => Mval(lnM[k][j])), bT = T.map((_, k) => (phase[k][j][0] === 'B' ? b[k][j] : 0));
+  const Mmu = mu.map((_, k) => Mval(lnM[i][k])), bmu = mu.map((_, k) => (phase[i][k][0] === 'B' ? b[i][k] : 0));
+  const eT = exact.T, eM = exact.mu;
   const xT = { title: { text: 'T' }, type: state.logT ? 'log' : 'linear', exponentformat: 'power',
                range: state.logT ? [Math.log10(T[0]), Math.log10(T.at(-1))] : [0, T.at(-1)] };
   const xmu = { title: { text: 'μ' }, range: [mu[0], mu.at(-1)] };
   const mark = (x) => [{ type: 'line', yref: 'paper', y0: 0, y1: 1, x0: x, x1: x, line: { color: t.muted, width: 1, dash: 'dot' } }];
-  const lay = (xa, yt, x0, ylog) => baseLayout(t, { xaxis: xa, showlegend: true, shapes: mark(x0),
-    yaxis: { title: { text: yt }, rangemode: 'tozero', ...(ylog ? { type: 'log', exponentformat: 'power' } : {}) },
+  const lay = (xa, yt, x0) => baseLayout(t, { xaxis: xa, showlegend: true, shapes: mark(x0), yaxis: { title: { text: yt }, rangemode: 'tozero' },
     legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { size: 10, color: t.ink2 } }, margin: { l: 56, r: 10, t: 8, b: 40 } });
-  $('sT-title').innerHTML = `M*(T) при μ = ${mu[j].toFixed(3)}`;
-  $('smu-title').innerHTML = `M*(μ) при T = ${T[i].toPrecision(3)}`;
-  $('sT-b-title').innerHTML = `b*(T) при μ = ${mu[j].toFixed(3)}`;
-  $('smu-b-title').innerHTML = `b*(μ) при T = ${T[i].toPrecision(3)}`;
-  Plotly.react($('sT-M'), phaseSegments(T, MT, phT, 'T'), lay(xT, 'M*', T[i]), CFG);
-  Plotly.react($('smu-M'), phaseSegments(mu, Mmu, phM, 'μ'), lay(xmu, 'M*', mu[j]), CFG);
-  Plotly.react($('sT-b'), phaseSegments(T, bT, phT, 'T'), lay(xT, 'b*', T[i]), CFG);
-  Plotly.react($('smu-b'), phaseSegments(mu, bmu, phM, 'μ'), lay(xmu, 'b*', mu[j]), CFG);
+  const prog = (e, N) => (e && e.n < N ? ` — точный расчёт ${e.n}/${N}…` : e ? ' — точно' : '');
+  $('sT-title').innerHTML = `M*(T) при μ = ${state.mu}${prog(eT, N_ST)}`;
+  $('smu-title').innerHTML = `M*(μ) при T = ${state.T}${prog(eM, N_SMU)}`;
+  $('sT-b-title').innerHTML = `b*(T) при μ = ${state.mu}`;
+  $('smu-b-title').innerHTML = `b*(μ) при T = ${state.T}`;
+  Plotly.react($('sT-M'), [grey(T, MT, 'T'), ...(eT ? phaseSegmentsExact(eT, eT.M, 'T') : [])], lay(xT, 'M*', state.T), CFG);
+  Plotly.react($('smu-M'), [grey(mu, Mmu, 'μ'), ...(eM ? phaseSegmentsExact(eM, eM.M, 'μ') : [])], lay(xmu, 'M*', state.mu), CFG);
+  Plotly.react($('sT-b'), [grey(T, bT, 'T'), ...(eT ? phaseSegmentsExact(eT, eT.b, 'T') : [])], lay(xT, 'b*', state.T), CFG);
+  Plotly.react($('smu-b'), [grey(mu, bmu, 'μ'), ...(eM ? phaseSegmentsExact(eM, eM.b, 'μ') : [])], lay(xmu, 'b*', state.mu), CFG);
 }
 
 // ---------------------------------------------------------------------------
@@ -167,7 +201,9 @@ worker.onmessage = ({ data }) => {
   const cb = pending.get(data.job); if (cb) cb(data);
 };
 function runPoint(mu, T) {
-  state.mu = mu; state.T = T; writeHash(); draw(); drawSlices();
+  state.mu = mu; state.T = T; writeHash(); draw();
+  if (D) startExact();
+  drawSlices();
   $('pt-mu').value = mu; $('pt-T').value = T;
   $('status').textContent = `Расчёт точки μ = ${mu}, T = ${T}, L = ${state.L}…`;
   const t0 = performance.now(), id = ++job;

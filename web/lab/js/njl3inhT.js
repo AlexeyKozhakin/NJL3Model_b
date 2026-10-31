@@ -95,12 +95,15 @@ function channelT(mu, L, g, phi, T, S, M0, b0) {
   return r.f < -OMEGA_NOISE && lm > LNM_LO + 1e-6 && b > 1e-8 ? { M, b, omega: r.f } : { M: 0, b, omega: 0 };
 }
 
-/** Глобальный минимум Ω_T по (M, b) в точке (μ, L). */
-export function findMinimumT(mu, L, g, phi = 0, T = 1e-3) {
+/** Глобальный минимум Ω_T по (M, b) в точке (μ, L). extra — дополнительные старты [[M, b]] (продолжение вдоль
+ *  линии: минимум в соседней точке); b = 0 — однородный старт. pre — {r0, hom} при T = 0 (зависят только от μ, L). */
+export function zeroTCandidates(mu, L, g, phi) {
+  return { r0: findMinimum0(mu, L, g, phi, 0), hom: homFindMinimum(mu, L, g, phi) };
+}
+export function findMinimumT(mu, L, g, phi = 0, T = 1e-3, extra = [], pre = null) {
   phi = checkPhi(phi);
-  const r0 = findMinimum0(mu, L, g, phi, 0);
-  const hom = homFindMinimum(mu, L, g, phi);
-  const h = homT(mu, L, g, phi, T, hom.minima.map((m) => m.M));
+  const { r0, hom } = pre || zeroTCandidates(mu, L, g, phi);
+  const h = homT(mu, L, g, phi, T, [...hom.minima.map((m) => m.M), ...extra.filter(([M, b]) => M > 0 && !(b > 0)).map(([M]) => M)]);
   const cand = [{ phase: homPhaseLabel(h.M, mu, L, phi), M: h.M, b: 0, omega: h.omega }];
   const starts = [];
   for (const ch of r0.channels)
@@ -110,6 +113,11 @@ export function findMinimumT(mu, L, g, phi = 0, T = 1e-3) {
     if (!starts.some(([, S, M]) => Math.abs(S - ch.S) < 1e-12 && Math.abs(M - r0.M_star) < 1e-9))
       starts.push([ch.n, ch.S, r0.M_star, r0.b_star]);
   }
+  for (const [M, b] of extra)
+    if (M > 0 && b > 1e-8 && r0.channels.length) {
+      const ch = r0.channels.reduce((a, c) => (Math.abs(c.S - b) < Math.abs(a.S - b) ? c : a));
+      starts.push([ch.n, ch.S, M, b]);
+    }
   const channels = r0.channels.map((c) => ({ n: c.n, S: c.S, M0: c.M, b0: c.b, M: 0, b: c.S, omega: 0, done: false }));
   for (const [n, S, M0, b0] of starts) {
     const c = channelT(mu, L, g, phi, T, S, M0, b0);

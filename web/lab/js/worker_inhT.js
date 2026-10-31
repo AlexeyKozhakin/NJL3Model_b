@@ -1,6 +1,6 @@
 // Фоновые расчёты вкладки «Неоднородный, T > 0»: минимум в точке, карта Ω_T(M, b), срезы.
 import { setTable, hasTable, checkPhi } from './njl3inh.js';
-import { findMinimumT, omegaRelT } from './njl3inhT.js';
+import { findMinimumT, omegaRelT, zeroTCandidates } from './njl3inhT.js';
 
 async function ensure(phi) {
   if (hasTable(phi)) return;
@@ -28,6 +28,18 @@ function handle(type, job, d) {
       const row = new Float64Array(d.M.length);
       for (let j = 0; j < d.M.length; j++) row[j] = omegaRelT(d.M[j], d.b[i], mu, L, g, phi, T);
       self.postMessage({ type, job, i, row }, [row.buffer]);
+    }
+    self.postMessage({ type, job, done: true });
+  } else if (type === 'line') {
+    // минимумы вдоль линии (μ_k, T_k) с продолжением; кандидаты при T = 0 — один раз на каждое μ
+    const pre = new Map();
+    let prev = [];
+    for (let k = 0; k < d.mus.length; k++) {
+      const m = d.mus[k], t = d.Ts[k];
+      if (!pre.has(m)) pre.set(m, zeroTCandidates(m, L, g, phi));
+      const r = findMinimumT(m, L, g, phi, t, prev, pre.get(m));
+      prev = r.M_star > 0 ? [[r.M_star, Number.isFinite(r.b_star) ? r.b_star : 0]] : [];
+      self.postMessage({ type, job, k, phase: r.phase, M: r.M_star, b: r.b_star });
     }
     self.postMessage({ type, job, done: true });
   } else if (type === 'slice') {
