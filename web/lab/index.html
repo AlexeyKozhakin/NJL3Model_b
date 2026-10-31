@@ -423,10 +423,26 @@
     </div>
     <section class="layout-full">
       <div class="card">
-        <h2>Срезы через выбранную точку</h2>
-        <p class="note">Цветная линия — точный расчёт минимума Ω<sub>T</sub>(M, b) вдоль вертикали (μ фиксировано, 160 точек по T)
-          и горизонтали (T фиксировано, 140 точек по μ) в браузере, дорисовывается по мере расчёта (десятки секунд); цвет — фаза.
-          Серый пунктир — те же величины из посчитанной карты. Вертикальный пунктир — выбранная точка.</p>
+        <h2>Срезы</h2>
+        <div class="slice-form">
+          <label>L <input id="z-s-L" type="number" step="0.01" min="0.01"></label>
+          <label>μ (для среза по T) <input id="z-s-mu" type="number" step="0.01"></label>
+          <label>T (для среза по μ) <input id="z-s-T" type="number" step="0.001" min="0.0001"></label>
+          <fieldset><legend>Срез по T</legend>
+            <label>от <input id="z-s-T0" type="range" min="0" max="50" step="0.01"> <input id="z-s-T0n" type="number" step="0.01" min="0"></label>
+            <label>до <input id="z-s-T1" type="range" min="0" max="50" step="0.01"> <input id="z-s-T1n" type="number" step="0.01" min="0"></label>
+            <label>точек <input id="z-s-nT" type="number" step="10" min="5" max="1000"></label>
+          </fieldset>
+          <fieldset><legend>Срез по μ</legend>
+            <label>от <input id="z-s-mu0" type="range" min="0" max="10" step="0.01"> <input id="z-s-mu0n" type="number" step="0.01" min="0"></label>
+            <label>до <input id="z-s-mu1" type="range" min="0" max="10" step="0.01"> <input id="z-s-mu1n" type="number" step="0.01" min="0"></label>
+            <label>точек <input id="z-s-nMu" type="number" step="10" min="5" max="1000"></label>
+          </fieldset>
+          <button id="z-s-run" type="button" class="primary">Рассчитать срезы</button>
+        </div>
+        <p class="note">Клик по карте задаёт μ и T срезов, L по умолчанию — L карты (можно указать любое). Расчёт — по кнопке: минимум
+          Ω<sub>T</sub>(M, b) в каждой точке линии считается в браузере, два среза параллельно, линия дорисовывается по мере расчёта;
+          цвет — фаза. Время ~0.1 с на точку по T и ~0.3–0.6 с на точку по μ. Серый пунктир — значения из карты (если L среза = L карты).</p>
         <div class="maps">
           <div><h3 id="z-sT-title">M*(T)</h3><div id="z-sT-M" class="chart chart-mid"></div></div>
           <div><h3 id="z-smu-title">M*(μ)</h3><div id="z-smu-M" class="chart chart-mid"></div></div>

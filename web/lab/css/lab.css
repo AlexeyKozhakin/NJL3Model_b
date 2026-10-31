@@ -39,3 +39,10 @@
 .cmp-chip button { border: none; background: transparent; padding: 0 4px; font-size: 14px; cursor: pointer; color: var(--text-muted); }
 .chart-cmp { height: 360px; }
 .cmp-feedback { margin: -2px 0 8px; font-size: 13px; color: var(--text-secondary); min-height: 1.2em; }
+
+.slice-form { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-end; margin-bottom: 6px; }
+.slice-form fieldset { border: 1px solid var(--grid); border-radius: 8px; padding: 6px 10px; display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.slice-form legend { font-size: 12px; color: var(--text-secondary); padding: 0 4px; }
+.slice-form label { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-secondary); }
+.slice-form input[type=number] { width: 72px; }
+.slice-form input[type=range] { width: 130px; }
