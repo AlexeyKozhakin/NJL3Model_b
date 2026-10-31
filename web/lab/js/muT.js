@@ -150,6 +150,30 @@ function syncSliceInputs() {
   }
   $('s-nT').value = state.nT; $('s-nMu').value = state.nMu;
 }
+function fmtSec(s) { return s < 60 ? `${s.toFixed(0)} с` : `${Math.floor(s / 60)} мин ${Math.round(s % 60)} с`; }
+function updateProgress() {
+  for (const [key, bar] of [['T', 'pT'], ['mu', 'pMu']]) {
+    const e = exact[key];
+    const el = $('s-' + bar), tx = $('s-' + bar + '-txt');
+    if (!e) { el.value = 0; tx.textContent = ''; continue; }
+    el.max = e.N; el.value = e.n;
+    const sec = ((e.sec ?? (performance.now() - e.t0) / 1000));
+    const left = e.n > 0 && e.n < e.N && !e.stopped ? `, осталось ~${fmtSec(sec / e.n * (e.N - e.n))}` : '';
+    tx.textContent = e.stopped ? `${e.n}/${e.N} — остановлено` : e.n >= e.N ? `${e.N}/${e.N} — готово за ${fmtSec(sec)}`
+      : `${e.n}/${e.N} (${Math.round(100 * e.n / e.N)}%), ${fmtSec(sec)}${left}`;
+  }
+  const running = ['T', 'mu'].some((k) => exact[k] && exact[k].n < exact[k].N && !exact[k].stopped);
+  $('s-stop').disabled = !running;
+}
+function stopExact() {
+  for (const key of ['T', 'mu']) {
+    if (lineWorkers[key]) { lineWorkers[key].terminate(); lineWorkers[key] = null; }
+    const e = exact[key];
+    if (e && e.n < e.N) { e.stopped = true; e.sec = (performance.now() - e.t0) / 1000; }
+  }
+  lineJob++;
+  updateProgress(); drawSlices();
+}
 function startExact() {
   readSliceInputs();
   for (const key of ['T', 'mu']) if (lineWorkers[key]) lineWorkers[key].terminate();
@@ -166,15 +190,16 @@ function startExact() {
       if (id !== lineJob) return;
       const e = exact[key];
       if (data.type === 'error') { $('status').textContent = 'Ошибка расчёта среза: ' + data.message; return; }
-      if (data.done) { e.sec = (performance.now() - e.t0) / 1000; drawSlices(); return; }
+      if (data.done) { e.sec = (performance.now() - e.t0) / 1000; updateProgress(); drawSlices(); return; }
       e.ph[data.k] = data.phase; e.M[data.k] = data.M; e.b[data.k] = data.phase[0] === 'B' ? data.b : 0; e.n++;
+      updateProgress();
       if (e.n % 6 === 0) drawSlices();
     };
     w.postMessage({ type: 'line', job: id, L, g: -1, phi: 0, ...msg });
   };
   run('T', { mus: Ts.map(() => muFix), Ts });
   run('mu', { mus, Ts: mus.map(() => TFix) });
-  drawSlices();
+  updateProgress(); drawSlices();
 }
 
 function phaseSegmentsExact(e, ys, name) {
@@ -206,7 +231,8 @@ function drawSlices() {
   const mark = (x) => (x === null ? [] : [{ type: 'line', yref: 'paper', y0: 0, y1: 1, x0: x, x1: x, line: { color: t.muted, width: 1, dash: 'dot' } }]);
   const lay = (xa, yt, x0) => baseLayout(t, { xaxis: xa, showlegend: true, shapes: mark(x0), yaxis: { title: { text: yt }, rangemode: 'tozero' },
     legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { size: 10, color: t.ink2 } }, margin: { l: 56, r: 10, t: 8, b: 40 } });
-  const prog = (e) => (!e ? ' — нажмите «Рассчитать срезы»' : e.n < e.N ? ` — расчёт ${e.n}/${e.N}…` : ` — точно, ${e.N} точек${e.sec ? `, ${e.sec.toFixed(0)} с` : ''}`);
+  const prog = (e) => (!e ? ' — нажмите «Рассчитать срезы»' : e.stopped ? ` — остановлено на ${e.n}/${e.N}`
+    : e.n < e.N ? ` — расчёт ${e.n}/${e.N}…` : ` — точно, ${e.N} точек${e.sec ? `, ${e.sec.toFixed(0)} с` : ''}`);
   const lbl = (e, fix, v) => (e ? `${fix} = ${e.fix}, L = ${e.L}` : `${fix} = ${v}, L = ${state.sL}`);
   $('sT-title').innerHTML = `M*(T) при ${lbl(eT, 'μ', state.mu)}${prog(eT)}`;
   $('smu-title').innerHTML = `M*(μ) при ${lbl(eM, 'T', state.T)}${prog(eM)}`;
@@ -279,6 +305,7 @@ export async function initMuT() {
     $('s-' + k + 'n').addEventListener('change', () => { $('s-' + k).value = $('s-' + k + 'n').value; });
   }
   $('s-run').addEventListener('click', startExact);
+  $('s-stop').addEventListener('click', stopExact);
   await reload();
   runPoint(state.mu, state.T);
   document.querySelectorAll('[data-zl]').forEach((b) => b.addEventListener('click', async () => {

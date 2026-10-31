@@ -439,6 +439,11 @@
             <label>точек <input id="z-s-nMu" type="number" step="10" min="5" max="1000"></label>
           </fieldset>
           <button id="z-s-run" type="button" class="primary">Рассчитать срезы</button>
+          <button id="z-s-stop" type="button" disabled>Остановить</button>
+        </div>
+        <div class="slice-progress">
+          <div><span>Срез по T</span><progress id="z-s-pT" max="1" value="0"></progress><span id="z-s-pT-txt" class="muted"></span></div>
+          <div><span>Срез по μ</span><progress id="z-s-pMu" max="1" value="0"></progress><span id="z-s-pMu-txt" class="muted"></span></div>
         </div>
         <p class="note">Клик по карте задаёт μ и T срезов, L по умолчанию — L карты (можно указать любое). Расчёт — по кнопке: минимум
           Ω<sub>T</sub>(M, b) в каждой точке линии считается в браузере, два среза параллельно, линия дорисовывается по мере расчёта;

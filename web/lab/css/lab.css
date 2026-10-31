@@ -46,3 +46,6 @@
 .slice-form label { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-secondary); }
 .slice-form input[type=number] { width: 72px; }
 .slice-form input[type=range] { width: 130px; }
+.slice-progress { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 4px 0 6px; font-size: 13px; color: var(--text-secondary); }
+.slice-progress > div { display: flex; gap: 8px; align-items: center; }
+.slice-progress progress { width: 220px; height: 10px; accent-color: var(--accent); }
