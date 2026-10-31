@@ -32,7 +32,7 @@ const CFG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['la
               toImageButtonOptions: { format: 'png', scale: 2, filename: 'njl3_muT' } };
 
 const state = { L: 1, logT: false, bnd: true, mu: 4.0, T: 0.01,
-                sL: 1, sT0: 0, sT1: 5, smu0: 0.05, smu1: 7, nT: 120, nMu: 120 };
+                sL: 1, sT0: 0, sT1: 5, smu0: 0.05, smu1: 7, nT: 120, nMu: 120, doMu: false };
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
   for (const k of Object.keys(state)) if (p.has('z_' + k)) {
@@ -141,6 +141,7 @@ function readSliceInputs() {
   state.smu0 = Math.max(0, num('s-mu0n', state.smu0)); state.smu1 = Math.max(state.smu0 + 1e-3, num('s-mu1n', state.smu1));
   state.nT = Math.min(1000, Math.max(5, Math.round(num('s-nT', state.nT))));
   state.nMu = Math.min(1000, Math.max(5, Math.round(num('s-nMu', state.nMu))));
+  state.doMu = $('s-doMu').checked;
   writeHash();
 }
 function syncSliceInputs() {
@@ -148,14 +149,14 @@ function syncSliceInputs() {
   for (const [k, v] of [['T0', state.sT0], ['T1', state.sT1], ['mu0', state.smu0], ['mu1', state.smu1]]) {
     $('s-' + k).value = v; $('s-' + k + 'n').value = v;
   }
-  $('s-nT').value = state.nT; $('s-nMu').value = state.nMu;
+  $('s-nT').value = state.nT; $('s-nMu').value = state.nMu; $('s-doMu').checked = state.doMu;
 }
 function fmtSec(s) { return s < 60 ? `${s.toFixed(0)} с` : `${Math.floor(s / 60)} мин ${Math.round(s % 60)} с`; }
 function updateProgress() {
   for (const [key, bar] of [['T', 'pT'], ['mu', 'pMu']]) {
     const e = exact[key];
     const el = $('s-' + bar), tx = $('s-' + bar + '-txt');
-    if (!e) { el.value = 0; tx.textContent = ''; continue; }
+    if (!e) { el.value = 0; tx.textContent = key === 'mu' && !state.doMu ? 'не считается' : ''; continue; }
     el.max = e.N; el.value = e.n;
     const sec = ((e.sec ?? (performance.now() - e.t0) / 1000));
     const left = e.n > 0 && e.n < e.N && !e.stopped ? `, осталось ~${fmtSec(sec / e.n * (e.N - e.n))}` : '';
@@ -182,7 +183,7 @@ function startExact() {
   const Ts = lin(state.sT0, state.sT1, state.nT).map((x) => Math.max(x, T_FLOOR));
   const mus = lin(state.smu0, state.smu1, state.nMu).map((x) => Math.max(x, 1e-3));
   exact.T = { L, fix: muFix, x: Ts, ph: [], M: [], b: [], n: 0, N: Ts.length, t0: performance.now() };
-  exact.mu = { L, fix: TFix, x: mus, ph: [], M: [], b: [], n: 0, N: mus.length, t0: performance.now() };
+  exact.mu = state.doMu ? { L, fix: TFix, x: mus, ph: [], M: [], b: [], n: 0, N: mus.length, t0: performance.now() } : null;
   const run = (key, msg) => {
     const w = new Worker(new URL('./worker_inhT.js', import.meta.url), { type: 'module' });
     lineWorkers[key] = w;
@@ -198,7 +199,7 @@ function startExact() {
     w.postMessage({ type: 'line', job: id, L, g: -1, phi: 0, ...msg });
   };
   run('T', { mus: Ts.map(() => muFix), Ts });
-  run('mu', { mus, Ts: mus.map(() => TFix) });
+  if (state.doMu) run('mu', { mus, Ts: mus.map(() => TFix) });
   updateProgress(); drawSlices();
 }
 
@@ -231,11 +232,11 @@ function drawSlices() {
   const mark = (x) => (x === null ? [] : [{ type: 'line', yref: 'paper', y0: 0, y1: 1, x0: x, x1: x, line: { color: t.muted, width: 1, dash: 'dot' } }]);
   const lay = (xa, yt, x0) => baseLayout(t, { xaxis: xa, showlegend: true, shapes: mark(x0), yaxis: { title: { text: yt }, rangemode: 'tozero' },
     legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { size: 10, color: t.ink2 } }, margin: { l: 56, r: 10, t: 8, b: 40 } });
-  const prog = (e) => (!e ? ' — нажмите «Рассчитать срезы»' : e.stopped ? ` — остановлено на ${e.n}/${e.N}`
+  const prog = (e, key) => (!e ? (key === 'mu' && !state.doMu ? ' — не считается (отметьте «Срез по μ»)' : ' — нажмите «Рассчитать срезы»') : e.stopped ? ` — остановлено на ${e.n}/${e.N}`
     : e.n < e.N ? ` — расчёт ${e.n}/${e.N}…` : ` — точно, ${e.N} точек${e.sec ? `, ${e.sec.toFixed(0)} с` : ''}`);
   const lbl = (e, fix, v) => (e ? `${fix} = ${e.fix}, L = ${e.L}` : `${fix} = ${v}, L = ${state.sL}`);
   $('sT-title').innerHTML = `M*(T) при ${lbl(eT, 'μ', state.mu)}${prog(eT)}`;
-  $('smu-title').innerHTML = `M*(μ) при ${lbl(eM, 'T', state.T)}${prog(eM)}`;
+  $('smu-title').innerHTML = `M*(μ) при ${lbl(eM, 'T', state.T)}${prog(eM, 'mu')}`;
   $('sT-b-title').innerHTML = `b*(T) при ${lbl(eT, 'μ', state.mu)}`;
   $('smu-b-title').innerHTML = `b*(μ) при ${lbl(eM, 'T', state.T)}`;
   Plotly.react($('sT-M'), [...gT, ...(eT ? phaseSegmentsExact(eT, eT.M, 'T') : [])], lay(xT, 'M*', eT ? null : state.T), CFG);
@@ -306,6 +307,7 @@ export async function initMuT() {
   }
   $('s-run').addEventListener('click', startExact);
   $('s-stop').addEventListener('click', stopExact);
+  $('s-doMu').addEventListener('change', () => { state.doMu = $('s-doMu').checked; writeHash(); updateProgress(); drawSlices(); });
   await reload();
   runPoint(state.mu, state.T);
   document.querySelectorAll('[data-zl]').forEach((b) => b.addEventListener('click', async () => {
