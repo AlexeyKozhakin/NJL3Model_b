@@ -4,7 +4,7 @@
 const $$ = (id) => document.getElementById(id);
 const $ = (id) => $$('w-' + id);
 const root = document.querySelector('.viz-root');
-const LS = [0.1, 0.5, 1, 3];
+const LS = [0.1, 0.3, 0.5, 1, 3];
 const C0 = 0.01;                       // симметричный логарифм: z = sign(Φ) log10(1 + |Φ|/C0)
 // устойчивость × фаза: V, I, T устойчиво; V, I, T неустойчиво
 const STAB_COLORS = ['#2166ac', '#67a9cf', '#bdbcb6', '#67001f', '#d6604d', '#f4a582'];
