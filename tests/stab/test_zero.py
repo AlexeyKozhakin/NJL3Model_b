@@ -49,7 +49,7 @@ def test_formula_as_written_fails_the_q_to_zero_check():
 def test_scan_min_zero_finite():
     warnings.simplefilter('ignore')
     r = S.scan_min_zero(4.0, 5.0, -1.0, T=1e-3)
-    assert r['phi_min'] < S.half_G0(4.0, 5.0, -1.0) + 1e-12
+    assert r['phi_min'] < S.half_G_T(4.0, 5.0, -1.0, 1e-3) + 1e-12
 
 
 @pytest.mark.parametrize('M,mu,L', [(1e-4, 2.145, 0.5969849246231156), (1e-4, 2.46, 0.5969849246231156),

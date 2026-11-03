@@ -18,6 +18,7 @@
       <button role="tab" data-tab="inh" class="tab">Неоднородный случай (M, b)</button>
       <button role="tab" data-tab="inhT" class="tab">Неоднородный, T &gt; 0</button>
       <button role="tab" data-tab="muT" class="tab">Диаграмма (μ, T)</button>
+      <button role="tab" data-tab="stabT" class="tab">Устойчивость (μ, T)</button>
       <button role="tab" data-tab="stab" class="tab">Устойчивость однородного решения (ГН)</button>
     </nav>
   </header>
@@ -454,6 +455,53 @@
           <div><h3 id="z-sT-b-title">b*(T)</h3><div id="z-sT-b" class="chart chart-mid"></div></div>
           <div><h3 id="z-smu-b-title">b*(μ)</h3><div id="z-smu-b" class="chart chart-mid"></div></div>
         </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ===================================================================== -->
+  <section id="tab-stabT" class="tab-panel" role="tabpanel" hidden>
+    <p class="lead">
+      Устойчивость однородного решения при температуре T &gt; 0. В каждой точке (μ, T) при фиксированном L: однородный
+      глобальный минимум M(μ, L, T) потенциала Ω<sub>T</sub>(M, b = 0) (формула (A)) и минимум по (k, q₁) второй вариации
+      Φ<sub>full</sub> = ½ G<sub>T</sub>(M) + Φ<sub>T</sub>(k, q₁; M): при M ≠ 0 G<sub>T</sub> = 0 (уравнение щели), при
+      M = 0 — ½ G<sub>T</sub>(0⁺) плюс петля. Φ &gt; 0 при всех (k, q₁) — однородное решение устойчиво, Φ &lt; 0 хотя бы где-то —
+      неустойчиво (выгодна неоднородная флуктуация e<sup>i q₁ x + i 2πk y/L</sup>). Посчитано для φ = 0, g = −1;
+      μ ∈ [0.05, 7], T ∈ [10⁻³, 5]. Клик по карте — срезы через точку.
+    </p>
+    <section class="controls" aria-label="Параметры">
+      <span class="presets seg">
+        <span class="muted">L</span>
+        <button data-wl="0.1">0.1</button><button data-wl="0.5">0.5</button><button data-wl="1">1</button><button data-wl="3">3</button>
+      </span>
+      <span class="presets seg">
+        <span class="muted">карта</span>
+        <button data-wview="phi">min Φ</button><button data-wview="stab">устойчиво / неустойчиво</button>
+      </span>
+      <span class="presets seg">
+        <span class="muted">шкала T</span>
+        <button data-wscale="lin">линейная</button><button data-wscale="log">логарифмическая</button>
+      </span>
+      <span class="toggles">
+        <label><input id="w-show-zero" type="checkbox" checked> линия Φ = 0</label>
+        <label><input id="w-show-bnd" type="checkbox" checked> границы фаз</label>
+      </span>
+    </section>
+    <p id="w-status" class="status" role="status"></p>
+    <section class="layout-full">
+      <div class="card"><h2 id="w-map-title">min Φ</h2><div id="w-map" class="chart chart-map"></div></div>
+    </section>
+    <section class="maps">
+      <div class="card"><h2 id="w-sT-title">min Φ(T)</h2><div id="w-sT" class="chart chart-mid"></div></div>
+      <div class="card"><h2 id="w-smu-title">min Φ(μ)</h2><div id="w-smu" class="chart chart-mid"></div></div>
+    </section>
+    <section class="layout-full">
+      <div class="card">
+        <h2>Точка</h2>
+        <table id="w-table" class="point-table"></table>
+        <p class="note">Фазы однородного минимума: <b>V</b> — M ≥ μ (нет ферми-моря), <b>I<sub>j</sub></b> — 0 &lt; M &lt; μ,
+          <b>T</b> — M = 0. Срезы и таблица берутся из посчитанной карты (ближайший узел). Формулы и проверки — записка
+          «Устойчивость однородного решения при T &gt; 0»; расчёт — notebooks/93_stabT_muT.py.</p>
       </div>
     </section>
   </section>

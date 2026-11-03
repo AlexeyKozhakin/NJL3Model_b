@@ -410,16 +410,25 @@ def half_G0(mu, L, g, phi=0.0):
     return 0.5 * gap_G0(mu, L, g, phi)
 
 
+def half_G_T(mu, L, g, T=0.0, phi=0.0):
+    """½ G_T(0⁺) — the constant of the M = 0 second variation at temperature T (smearing of G(0⁺) over the
+    chemical potential, njl3.stab.thermal); T = 0: ½ G(0⁺)."""
+    if T == 0.0:
+        return half_G0(mu, L, g, phi)
+    from njl3.stab.thermal import gap_G_T
+    return 0.5 * gap_G_T(0.0, mu, L, g, T, phi)
+
+
 def phi_zero(k, q1, mu, L, g, T=0.0, phi=0.0, m_reg=M_ZERO):
-    """Phi(k, q1) around the symmetric solution M = 0."""
-    return half_G0(mu, L, g, phi) + _phi_total(k, q1, m_reg, mu, L, T, phi)
+    """Phi(k, q1) around the symmetric solution M = 0 (at T > 0 the constant is ½ G_T(0⁺))."""
+    return half_G_T(mu, L, g, T, phi) + _phi_total(k, q1, m_reg, mu, L, T, phi)
 
 
 def scan_min_zero(mu, L, g, T=1e-3, phi=0.0, m_reg=M_ZERO, **kw):
-    """scan_min for M = 0: the loop part at M = m_reg plus the constant ½ G(0⁺)."""
+    """scan_min for M = 0: the loop part at M = m_reg plus the constant ½ G_T(0⁺)."""
     r = scan_min(m_reg, mu, L, T=T, phi=phi, **kw)
     r = dict(r)
-    r['phi_min'] += half_G0(mu, L, g, phi)
+    r['phi_min'] += half_G_T(mu, L, g, T, phi)
     return r
 
 
