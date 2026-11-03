@@ -11,7 +11,8 @@ gaps). Candidates are taken from the T = 0 search (njl3.fast.minimize_nb with T 
     (ln M, t = (b - S_n)/M) on Omega_T. A channel whose T = 0 gap is far below the temperature
     (T > DEAD · T_c,n, T_c,n = (e^γ/π)(S_n/mu) M_n) is not refined — its gap does not survive.
 
-The minimum must be deeper than OMEGA_NOISE, otherwise the point is in phase T (M* = 0).
+The minimum must be deeper than the noise level noise(ctx) = max(OMEGA_NOISE, 1e-14 (mu + T)³/L) — the round-off of
+the terms of Omega_T grows with their size (~(mu + T)³/L); otherwise the point is in phase T (M* = 0).
 """
 
 import math
@@ -32,6 +33,11 @@ B_MIN = 1e-5                     # b below this: the channel slid to the b = 0 s
 _GM_B0 = np.geomspace(1e-4, 8.0, 90)
 
 
+def noise(ctx):
+    """Noise level of Omega_T at (mu, L, T): round-off of terms of size ~(mu + T)³/L."""
+    return max(OMEGA_NOISE, 1e-14 * (ctx.mu + ctx.T) ** 3 / ctx.L)
+
+
 def _hom(ctx, starts=()):
     """Best b = 0 minimum of Omega_T: every local minimum of a ln M grid and every T = 0 homogeneous minimum
     (starts) refined by bounded Brent in a window around it."""
@@ -48,7 +54,7 @@ def _hom(ctx, starts=()):
                             method='bounded', options=dict(xatol=1e-11))
         if r.fun < best_o:
             best_M, best_o = math.exp(float(r.x)), float(r.fun)
-    return (best_M, best_o) if best_o < -OMEGA_NOISE else (0.0, 0.0)
+    return (best_M, best_o) if best_o < -noise(ctx) else (0.0, 0.0)
 
 
 def _channel(ctx, S, M0, b0):
@@ -65,7 +71,7 @@ def _channel(ctx, S, M0, b0):
     lm = max(float(r.x[0]), LNM_LO)
     M = math.exp(lm)
     b = S + float(r.x[1]) * M
-    if r.fun < -OMEGA_NOISE and lm > LNM_LO + 1e-6 and b > 1e-8:
+    if r.fun < -noise(ctx) and lm > LNM_LO + 1e-6 and b > 1e-8:
         return M, b, float(r.fun)
     return 0.0, b, 0.0
 
@@ -101,10 +107,10 @@ def find_minimum(mu, L, g, phi=0.0, T=1e-3, extra=(), r0=None):
     # a channel that slid to b ≈ 0 is the b = 0 solution; a channel beats the (exact) b = 0 minimum only by a margin
     best = cand[0]
     for c in sorted(cand[1:], key=lambda c: c['omega']):
-        if c['b'] > B_MIN and c['omega'] < best['omega'] - max(OMEGA_NOISE, 1e-10 * abs(best['omega'])):
+        if c['b'] > B_MIN and c['omega'] < best['omega'] - max(noise(ctx), 1e-10 * abs(best['omega'])):
             best = c
             break
-    if best['omega'] >= -OMEGA_NOISE:
+    if best['omega'] >= -noise(ctx):
         best = dict(phase='T', M=0.0, b=float('nan'), omega=0.0)
     if best['phase'] == 'B':
         n_near = min(r0.channels, key=lambda q: abs(q['S'] - best['b']))['n']

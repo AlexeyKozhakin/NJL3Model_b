@@ -55,6 +55,8 @@ export function omegaRelT(M, b, mu, L, g, phi, T) {
 // ---------------------------------------------------------------------------
 // Глобальный минимум (как njl3/fast/minimize_T.py): кандидаты — минимумы при T = 0
 // ---------------------------------------------------------------------------
+// порог шума растёт с масштабом слагаемых Ω_T ~ (μ + T)³/L (округление), как njl3/fast/minimize_T.noise
+const noise = (mu, L, T) => Math.max(OMEGA_NOISE, 1e-14 * (mu + T) ** 3 / L);
 const DEAD = 3.0, LNM_LO = Math.log(1e-6), B_MIN = 1e-5;
 const GM_B0 = Array.from({ length: 90 }, (_, i) => Math.exp(Math.log(1e-4) + (Math.log(8) - Math.log(1e-4)) * i / 89));
 
@@ -82,7 +84,7 @@ function homT(mu, L, g, phi, T, starts) {
     const r = boundedMin(f, x0 - w, x0 + w);
     if (r.f < best.omega) best = { M: Math.exp(r.x), omega: r.f };
   }
-  return best.omega < -OMEGA_NOISE ? best : { M: 0, omega: 0 };
+  return best.omega < -noise(mu, L, T) ? best : { M: 0, omega: 0 };
 }
 
 function channelT(mu, L, g, phi, T, S, M0, b0) {
@@ -92,7 +94,7 @@ function channelT(mu, L, g, phi, T, S, M0, b0) {
   };
   const r = nelderMead(f, [Math.log(M0), (b0 - S) / M0], 0.3, { xatol: 1e-7, fatol: 1e-15, maxfev: 1600 });
   const lm = Math.max(r.x[0], LNM_LO), M = Math.exp(lm), b = S + r.x[1] * M;
-  return r.f < -OMEGA_NOISE && lm > LNM_LO + 1e-6 && b > 1e-8 ? { M, b, omega: r.f } : { M: 0, b, omega: 0 };
+  return r.f < -noise(mu, L, T) && lm > LNM_LO + 1e-6 && b > 1e-8 ? { M, b, omega: r.f } : { M: 0, b, omega: 0 };
 }
 
 /** Глобальный минимум Ω_T по (M, b) в точке (μ, L). extra — дополнительные старты [[M, b]] (продолжение вдоль
@@ -127,8 +129,8 @@ export function findMinimumT(mu, L, g, phi = 0, T = 1e-3, extra = [], pre = null
   }
   let best = cand[0];
   for (const c of cand.slice(1).sort((x, y) => x.omega - y.omega))
-    if (c.b > B_MIN && c.omega < best.omega - Math.max(OMEGA_NOISE, 1e-10 * Math.abs(best.omega))) { best = c; break; }
-  if (best.omega >= -OMEGA_NOISE) best = { phase: 'T', M: 0, b: NaN, omega: 0 };
+    if (c.b > B_MIN && c.omega < best.omega - Math.max(noise(mu, L, T), 1e-10 * Math.abs(best.omega))) { best = c; break; }
+  if (best.omega >= -noise(mu, L, T)) best = { phase: 'T', M: 0, b: NaN, omega: 0 };
   if (best.phase === 'B') {
     const thr = thresholds(mu, L, phi);
     const near = thr.reduce((a, q) => (Math.abs(q.S - best.b) < Math.abs(a.S - best.b) ? q : a));

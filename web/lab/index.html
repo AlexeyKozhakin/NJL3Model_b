@@ -384,8 +384,9 @@
       Фазовые диаграммы в плоскости (μ, T) при фиксированной длине окружности L: глобальный минимум
       Ω<sub>T</sub>(M, b) по массе M и параметру киральной спирали b при температуре T (формула (A): вакуумные части при T = 0,
       часть с ферми-морем — при T). Фазы: V и I<sub>j</sub> — однородное решение (b = 0; V — M* ≥ μ), B<sub>n</sub> — спираль у
-      порога уровня n (b* ≈ S<sub>n</sub>), T — M* = 0. Посчитано для φ = 0, g = −1; μ ∈ [0.05, 7], T ∈ [10⁻³, 5]
-      (логарифмическая сетка). Клик по карте — расчёт точки в браузере.
+      порога уровня n (b* ≈ S<sub>n</sub>), T — M* = 0. Посчитано для φ = 0, g = −1; μ ∈ [0.05, 7], T ∈ [10⁻³, 5], при L = 0.1 — μ ∈ [0.05, 15], T ∈ [10⁻³, 10]
+      (логарифмическая сетка). Клик по карте — расчёт точки в браузере. При L = 0.1 и T ≳ 3 узкая полоса спирали над фазой V —
+      артефакт быстрой квадратуры формулы (A) (ошибка ~10⁻³ при больших T); там на самом деле фаза T.
     </p>
     <section class="controls" aria-label="Параметры">
       <span class="presets seg">
@@ -435,8 +436,8 @@
             <label>точек <input id="z-s-nT" type="number" step="10" min="5" max="1000"></label>
           </fieldset>
           <fieldset><legend><label><input id="z-s-doMu" type="checkbox"> Срез по μ</label></legend>
-            <label>от <input id="z-s-mu0" type="range" min="0" max="10" step="0.01"> <input id="z-s-mu0n" type="number" step="0.01" min="0"></label>
-            <label>до <input id="z-s-mu1" type="range" min="0" max="10" step="0.01"> <input id="z-s-mu1n" type="number" step="0.01" min="0"></label>
+            <label>от <input id="z-s-mu0" type="range" min="0" max="15" step="0.01"> <input id="z-s-mu0n" type="number" step="0.01" min="0"></label>
+            <label>до <input id="z-s-mu1" type="range" min="0" max="15" step="0.01"> <input id="z-s-mu1n" type="number" step="0.01" min="0"></label>
             <label>точек <input id="z-s-nMu" type="number" step="10" min="5" max="1000"></label>
           </fieldset>
           <button id="z-s-run" type="button" class="primary">Рассчитать срезы</button>
@@ -467,7 +468,8 @@
       Φ<sub>full</sub> = ½ G<sub>T</sub>(M) + Φ<sub>T</sub>(k, q₁; M): при M ≠ 0 G<sub>T</sub> = 0 (уравнение щели), при
       M = 0 — ½ G<sub>T</sub>(0⁺) плюс петля. Φ &gt; 0 при всех (k, q₁) — однородное решение устойчиво, Φ &lt; 0 хотя бы где-то —
       неустойчиво (выгодна неоднородная флуктуация e<sup>i q₁ x + i 2πk y/L</sup>). Посчитано для φ = 0, g = −1;
-      μ ∈ [0.05, 7], T ∈ [10⁻³, 5]. Клик по карте — срезы через точку.
+      μ ∈ [0.05, 7], T ∈ [10⁻³, 5], при L = 0.1 — μ ∈ [0.05, 15], T ∈ [10⁻³, 10]. Клик по карте — срезы через точку.
+      При L = 0.1 и T ≳ 3 граница плавления фазы V неточна (ступеньки): там быстрая квадратура формулы (A) ошибается на ~10⁻³.
     </p>
     <section class="controls" aria-label="Параметры">
       <span class="presets seg">
